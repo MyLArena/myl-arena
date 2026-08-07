@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -11,6 +12,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
+
+// --- 1. SERVIR ARCHIVOS ESTÁTICOS DEL FRONTEND ---
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // Registro en memoria de las salas creadas oficialmente
 const activeRooms = new Set();
@@ -100,6 +104,13 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(3001, () => {
-  console.log('Servidor corriendo con validación de salas activas en el puerto 3001');
+// --- 2. RUTA COMODÍN PARA SPA (Debe ir después de los endpoints de la API) ---
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// --- 3. CONFIGURACIÓN DEL PUERTO PARA RENDER ---
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Servidor corriendo con validación de salas activas en el puerto ${PORT}`);
 });
