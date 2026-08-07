@@ -16,25 +16,27 @@ const io = new Server(server, {
 // --- 1. SERVIR ARCHIVOS ESTÁTICOS DEL FRONTEND ---
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Registro en memoria de las salas creadas oficialmente
-const activeRooms = new Set();
+// Almacenamiento robusto de salas, mazos y estados en memoria del servidor
+const roomsData = new Map(); // roomCode -> { decks: Map(socketId -> deck), boardState: null }
 
 // Endpoint HTTP para verificar existencia de sala antes de conectar sockets
 app.get('/api/check-room/:code', (req, res) => {
   const roomCode = req.params.code.toUpperCase();
-  const exists = activeRooms.has(roomCode);
+  const exists = roomsData.has(roomCode);
   res.json({ exists });
 });
 
-// NUEVO: Endpoint HTTP para registrar la sala de inmediato al seleccionarla
+// Endpoint HTTP para registrar la sala de inmediato al seleccionarla
 app.post('/api/create-room', (req, res) => {
   const { code } = req.body;
   if (!code) {
     return res.status(400).json({ success: false, message: 'Código requerido' });
   }
   const roomCode = code.toUpperCase();
-  activeRooms.add(roomCode);
-  console.log(`Sala CREADA por HTTP: ${roomCode}. Salas activas:`, Array.from(activeRooms));
+  if (!roomsData.has(roomCode)) {
+    roomsData.set(roomCode, { decks: new Map(), boardState: null });
+  }
+  console.log(`Sala CREADA por HTTP: ${roomCode}. Salas activas:`, Array.from(roomsData.keys()));
   res.json({ success: true, roomCode });
 });
 
@@ -48,29 +50,40 @@ io.on('connection', (socket) => {
     return;
   }
 
+  socket.join(roomCode);
+
+  if (!roomsData.has(roomCode)) {
+    roomsData.set(roomCode, { decks: new Map(), boardState: null });
+  }
+  const roomInfo = roomsData.get(roomCode);
+
   if (action === 'create') {
-    activeRooms.add(roomCode);
-    socket.join(roomCode);
-    console.log(`Sala CREADA oficialmente vía Socket: ${roomCode}. Salas activas:`, Array.from(activeRooms));
+    console.log(`Sala CREADA vía Socket: ${roomCode} (${socket.id})`);
   } else if (action === 'join') {
-    if (activeRooms.has(roomCode)) {
-      socket.join(roomCode);
-      console.log(`Jugador se UNIÓ con éxito a la sala existente: ${roomCode}`);
-      socket.to(roomCode).emit('request_sync');
-    } else {
-      console.log(`Intento de unión RECHAZADO: la sala ${roomCode} no existe.`);
-      socket.emit('room_error', 'La sala introducida no existe o ha expirado.');
-      socket.disconnect();
-      return;
+    console.log(`Jugador se UNIÓ vía Socket: ${roomCode} (${socket.id})`);
+    
+    // SINCRONIZACIÓN AUTOMÁTICA: Si ya hay mazos en la sala, enviárselos al recién llegado
+    for (const [otherSocketId, otherDeck] of roomInfo.decks.entries()) {
+      if (otherSocketId !== socket.id) {
+        socket.emit('playerJoined', otherDeck);
+      }
     }
+    if (roomInfo.boardState) {
+      socket.emit('syncBoard', roomInfo.boardState);
+    }
+
+    socket.to(roomCode).emit('request_sync');
   }
 
   // --- SINCRONIZACIÓN DE MESA Y LOGS ---
   socket.on('playerJoined', (deck) => {
+    roomInfo.decks.set(socket.id, deck);
+    console.log(`Jugador ${socket.id} envió su mazo en sala ${roomCode}`);
     socket.to(roomCode).emit('playerJoined', deck);
   });
 
   socket.on('syncBoard', (state) => {
+    roomInfo.boardState = state;
     socket.to(roomCode).emit('syncBoard', state);
   });
 
@@ -104,12 +117,15 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`Usuario desconectado de la sala ${roomCode}: ${socket.id}`);
+    if (roomInfo) {
+      roomInfo.decks.delete(socket.id);
+    }
     
     setTimeout(() => {
       const room = io.sockets.adapter.rooms.get(roomCode);
       if (!room || room.size === 0) {
-        activeRooms.delete(roomCode);
-        console.log(`Sala ${roomCode} eliminada por estar vacía de forma permanente.`);
+        roomsData.delete(roomCode);
+        console.log(`Sala ${roomCode} eliminada por estar vacía.`);
       }
     }, 15000); 
   });
@@ -123,5 +139,5 @@ app.get(/.*/, (req, res) => {
 // --- 3. CONFIGURACIÓN DEL PUERTO PARA RENDER ---
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`Servidor corriendo con validación de salas activas en el puerto ${PORT}`);
+  console.log(`Servidor corriendo con sincronización robusta en el puerto ${PORT}`);
 });
