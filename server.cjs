@@ -26,6 +26,18 @@ app.get('/api/check-room/:code', (req, res) => {
   res.json({ exists });
 });
 
+// NUEVO: Endpoint HTTP para registrar la sala de inmediato al seleccionarla
+app.post('/api/create-room', (req, res) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ success: false, message: 'Código requerido' });
+  }
+  const roomCode = code.toUpperCase();
+  activeRooms.add(roomCode);
+  console.log(`Sala CREADA por HTTP: ${roomCode}. Salas activas:`, Array.from(activeRooms));
+  res.json({ success: true, roomCode });
+});
+
 io.on('connection', (socket) => {
   const rawRoomCode = socket.handshake.query.roomCode;
   const roomCode = rawRoomCode ? rawRoomCode.toUpperCase() : null;
@@ -39,7 +51,7 @@ io.on('connection', (socket) => {
   if (action === 'create') {
     activeRooms.add(roomCode);
     socket.join(roomCode);
-    console.log(`Sala CREADA oficialmente: ${roomCode}. Salas activas:`, Array.from(activeRooms));
+    console.log(`Sala CREADA oficialmente vía Socket: ${roomCode}. Salas activas:`, Array.from(activeRooms));
   } else if (action === 'join') {
     if (activeRooms.has(roomCode)) {
       socket.join(roomCode);
@@ -93,7 +105,6 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`Usuario desconectado de la sala ${roomCode}: ${socket.id}`);
     
-    // Tiempo de gracia para evitar borrados accidentales por StrictMode o F5
     setTimeout(() => {
       const room = io.sockets.adapter.rooms.get(roomCode);
       if (!room || room.size === 0) {

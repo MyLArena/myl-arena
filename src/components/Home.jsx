@@ -72,7 +72,6 @@ const Inicio = ({ onNavegar, onIniciarSolitario, onIniciarMultijugador }) => {
     }
 
     try {
-      // MODIFICACIÓN REALIZADA AQUÍ: Se cambió la ruta absoluta por una relativa
       const response = await fetch(`/api/check-room/${codigoLimpio}`);
       const data = await response.json();
       
@@ -90,7 +89,8 @@ const Inicio = ({ onNavegar, onIniciarSolitario, onIniciarMultijugador }) => {
     setMostrarModalMazos(true);
   };
 
-  const seleccionarMazoParaJugar = (mazo) => {
+  // MODIFICACIÓN: La función ahora es async para poder esperar al servidor
+  const seleccionarMazoParaJugar = async (mazo) => {
     if (!mazo.esJugable) {
       alert("Este mazo no es jugable. Debe cumplir con los requisitos (ej. mazo principal completo).");
       return;
@@ -102,6 +102,17 @@ const Inicio = ({ onNavegar, onIniciarSolitario, onIniciarMultijugador }) => {
         onIniciarSolitario(mazo);
       }
     } else if (accionPendiente === 'crear') {
+      // Registrar la sala en el servidor antes de iniciar la navegación
+      try {
+        await fetch('/api/create-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: codigoGeneradoPendiente })
+        });
+      } catch (error) {
+        console.error("Error al registrar la sala:", error);
+      }
+      
       if (onIniciarMultijugador) {
         onIniciarMultijugador(mazo, codigoGeneradoPendiente, 'create');
       }
