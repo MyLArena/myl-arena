@@ -72,7 +72,7 @@ const Inicio = ({ onNavegar, onIniciarSolitario, onIniciarMultijugador }) => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/check-room/${codigoLimpio}`);
+      const response = await fetch(`/api/check-room/${codigoLimpio}`);
       const data = await response.json();
       
       if (!data.exists) {
