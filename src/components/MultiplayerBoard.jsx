@@ -177,7 +177,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
       socketService.emit('playerJoined', expandedDeck);
       addLog("Mazo y Side Deck cargados exitosamente.");
     }
-  }, [mazo, roomCode, addLog]);
+  }, [mazo, addLog]);
 
   useEffect(() => {
     socketService.emit('syncCalcLocal', {

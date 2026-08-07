@@ -13,20 +13,16 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// --- 1. SERVIR ARCHIVOS ESTÁTICOS DEL FRONTEND ---
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Almacenamiento robusto de salas, mazos y estados en memoria del servidor
-const roomsData = new Map(); // roomCode -> { decks: Map(socketId -> deck), boardState: null }
+const roomsData = new Map(); 
 
-// Endpoint HTTP para verificar existencia de sala antes de conectar sockets
 app.get('/api/check-room/:code', (req, res) => {
   const roomCode = req.params.code.toUpperCase();
   const exists = roomsData.has(roomCode);
   res.json({ exists });
 });
 
-// Endpoint HTTP para registrar la sala de inmediato al seleccionarla
 app.post('/api/create-room', (req, res) => {
   const { code } = req.body;
   if (!code) {
@@ -62,20 +58,20 @@ io.on('connection', (socket) => {
   } else if (action === 'join') {
     console.log(`Jugador se UNIÓ vía Socket: ${roomCode} (${socket.id})`);
     
-    // SINCRONIZACIÓN AUTOMÁTICA: Si ya hay mazos en la sala, enviárselos al recién llegado
+    // Enviar mazos existentes al recién llegado
     for (const [otherSocketId, otherDeck] of roomInfo.decks.entries()) {
       if (otherSocketId !== socket.id) {
         socket.emit('playerJoined', otherDeck);
       }
     }
-    if (roomInfo.boardState) {
-      socket.emit('syncBoard', roomInfo.boardState);
-    }
+    
+    // FIX: Eliminamos el envío automático del roomInfo.boardState aquí, 
+    // porque el caché tiene el mazo rival en 0 y se lo borrará al invitado.
+    // Dejamos que el request_sync obligue al creador a mandar un tablero actualizado.
 
     socket.to(roomCode).emit('request_sync');
   }
 
-  // --- SINCRONIZACIÓN DE MESA Y LOGS ---
   socket.on('playerJoined', (deck) => {
     roomInfo.decks.set(socket.id, deck);
     console.log(`Jugador ${socket.id} envió su mazo en sala ${roomCode}`);
@@ -91,17 +87,14 @@ io.on('connection', (socket) => {
     socket.to(roomCode).emit('syncLog', msg);
   });
 
-  // --- SINCRONIZACIÓN DE INTERACCIONES Y PING ---
   socket.on('ping', (data) => {
     socket.to(roomCode).emit('ping', data);
   });
 
-  // --- SINCRONIZACIÓN DE MANO REVELADA ---
   socket.on('syncReveal', (isRevealed) => {
     socket.to(roomCode).emit('syncReveal', isRevealed);
   });
 
-  // --- SINCRONIZACIÓN DE CARTAS MOSTRADAS DEL MAZO ---
   socket.on('syncRevealedTop', (modalState) => {
     socket.to(roomCode).emit('syncRevealedTop', modalState);
   });
@@ -110,7 +103,6 @@ io.on('connection', (socket) => {
     socket.to(roomCode).emit('closeRevealedTop');
   });
 
-  // --- SINCRONIZACIÓN DE CALCULADORA ---
   socket.on('syncCalcLocal', (calcData) => {
     socket.to(roomCode).emit('syncCalcLocal', calcData);
   });
@@ -131,12 +123,10 @@ io.on('connection', (socket) => {
   });
 });
 
-// --- 2. RUTA COMODÍN CON EXPRESIÓN REGULAR (Solución definitiva para SPA) ---
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// --- 3. CONFIGURACIÓN DEL PUERTO PARA RENDER ---
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Servidor corriendo con sincronización robusta en el puerto ${PORT}`);
