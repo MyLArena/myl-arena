@@ -104,8 +104,8 @@ io.on('connection', (socket) => {
   });
 });
 
-// --- 2. RUTA COMODÍN PARA SPA (Debe ir después de los endpoints de la API) ---
-app.get('*', (req, res) => {
+// --- 2. RUTA COMODÍN PARA SPA (Corregida con /*) ---
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
