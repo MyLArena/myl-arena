@@ -72,6 +72,7 @@ const Inicio = ({ onNavegar, onIniciarSolitario, onIniciarMultijugador }) => {
     }
 
     try {
+      // MODIFICACIÓN REALIZADA AQUÍ: Se cambió la ruta absoluta por una relativa
       const response = await fetch(`/api/check-room/${codigoLimpio}`);
       const data = await response.json();
       
