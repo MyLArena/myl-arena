@@ -117,7 +117,7 @@ export default function CartCollection() {
         const coincideBusqueda = carta.n.toLowerCase().includes(busqueda.toLowerCase()) || 
                                  (carta.h && carta.h.toLowerCase().includes(busqueda.toLowerCase()));
         
-        // Lógica de edición blindada: compara por ID numérico y también por nombre textual mapeado
+        // Lógica de edición blindada
         const nombreEdicionMapeada = EDICIONES_MAP[filtroEdicion] ? EDICIONES_MAP[filtroEdicion].toLowerCase() : '';
         const coincideEdicion = filtroEdicion === 'Todas' || 
                                String(carta.e) === String(filtroEdicion) || 
@@ -217,7 +217,7 @@ export default function CartCollection() {
                 </div>
             </div>
 
-            {/* Grilla de Cartas Mejorada con Información Visible */}
+            {/* Grilla de Cartas */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px' }}>
                 {cartasFiltradas.map((carta) => (
                     <div 
@@ -253,7 +253,7 @@ export default function CartCollection() {
                 ))}
             </div>
 
-            {/* Modal / Panel de Inspección con Toda la Información */}
+            {/* Modal / Panel de Inspección - Modificado para integrar la X */}
             {cartaSeleccionada && (
                 <div style={{
                     position: 'fixed',
@@ -271,29 +271,12 @@ export default function CartCollection() {
                 }}>
                     <div style={{
                         display: 'flex',
-                        gap: '4px',
+                        gap: '20px',
                         maxWidth: '1000px',
                         width: '100%',
                         alignItems: 'center',
-                        position: 'relative'
+                        justifyContent: 'center'
                     }}>
-                        {/* Botón cerrar general */}
-                        <button 
-                            onClick={() => setCartaSeleccionada(null)}
-                            style={{
-                                position: 'absolute',
-                                top: '-40px',
-                                right: '0',
-                                background: 'none',
-                                border: 'none',
-                                color: '#fff',
-                                fontSize: '2rem',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            &times;
-                        </button>
-
                         {/* Izquierda: Carta Grande */}
                         <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
                             <img 
@@ -303,79 +286,102 @@ export default function CartCollection() {
                             />
                         </div>
 
-                        {/* Derecha: Panel de Información Completo */}
+                        {/* Derecha: Panel de Información Completo estructurado con cabecera fija */}
                         <div style={{ 
                             width: '400px', 
                             backgroundColor: '#181818', 
                             border: '1px solid #333', 
                             borderRadius: '12px', 
-                            padding: '25px', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
                             boxShadow: '0 10px 30px rgba(0,0,0,0.8)',
-                            maxHeight: '85vh',
-                            overflowY: 'auto'
+                            maxHeight: '85vh'
                         }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                <span style={{ fontSize: '0.75rem', color: '#888', letterSpacing: '1px', fontWeight: 'bold' }}>CARTA DEL CÓDICE</span>
+                            {/* Cabecera Fija para el botón cerrar (X) */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 15px 0 15px' }}>
+                                <button 
+                                    onClick={() => setCartaSeleccionada(null)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#888',
+                                        fontSize: '2rem',
+                                        cursor: 'pointer',
+                                        lineHeight: '1',
+                                        transition: 'color 0.2s'
+                                    }}
+                                    onMouseOver={(e) => e.target.style.color = '#fff'}
+                                    onMouseOut={(e) => e.target.style.color = '#888'}
+                                >
+                                    &times;
+                                </button>
                             </div>
 
-                            <h2 style={{ fontSize: '1.8rem', color: '#fff', marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px', textTransform: 'uppercase' }}>
-                                {cartaSeleccionada.n}
-                            </h2>
-
-                            {/* Insignias con toda la información detallada */}
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                                <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem', color: '#c5a059' }}>
-                                    Edición: {EDICIONES_MAP[cartaSeleccionada.e] || cartaSeleccionada.e}
-                                </span>
-                                <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem', color: '#c5a059' }}>
-                                    Tipo: {TIPOS_MAP[cartaSeleccionada.t] || cartaSeleccionada.t}
-                                </span>
-                                <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem', color: '#c5a059' }}>
-                                    Frecuencia: {FRECUENCIAS_MAP[cartaSeleccionada.f] || cartaSeleccionada.f}
-                                </span>
-                                {cartaSeleccionada.r && cartaSeleccionada.r.length > 0 && (
-                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem', color: '#c5a059' }}>
-                                        Raza: {cartaSeleccionada.r.map(rId => RAZAS_MAP[rId] || rId).join(', ')}
-                                    </span>
-                                )}
-                                <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem' }}>
-                                    ID: {cartaSeleccionada.u}
-                                </span>
-                                {cartaSeleccionada.c !== undefined && cartaSeleccionada.c !== null && (
-                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem' }}>
-                                        Coste: {cartaSeleccionada.c}
-                                    </span>
-                                )}
-                                {cartaSeleccionada.z !== undefined && cartaSeleccionada.z !== null && (
-                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem' }}>
-                                        Fuerza: {cartaSeleccionada.z}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div style={{ backgroundColor: '#121212', border: '1px solid #333', borderRadius: '8px', padding: '15px', marginBottom: '20px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', color: '#c5a059', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                                    <span>Habilidad</span>
-                                    <span>&#9650;</span>
+                            {/* Contenido scrolleable del panel derecho */}
+                            <div style={{ padding: '0 25px 25px 25px', overflowY: 'auto' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#888', letterSpacing: '1px', fontWeight: 'bold' }}>CARTA DEL CÓDICE</span>
                                 </div>
-                                <p style={{ fontSize: '0.9rem', lineHeight: '1.5', color: '#ccc', whiteSpace: 'pre-line', margin: 0 }}>
-                                    {cartaSeleccionada.h || "Sin habilidad descrita."}
-                                </p>
-                            </div>
 
-                            <button 
-                                onClick={() => navigator.clipboard.writeText(cartaSeleccionada.h)}
-                                style={{ width: '100%', backgroundColor: '#2a2a2a', color: '#fff', border: '1px solid #444', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '20px' }}
-                            >
-                                Copiar Habilidad
-                            </button>
+                                <h2 style={{ fontSize: '1.8rem', color: '#fff', marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px', textTransform: 'uppercase' }}>
+                                    {cartaSeleccionada.n}
+                                </h2>
 
-                            {/* Sección Otras Versiones */}
-                            <div>
-                                <span style={{ fontSize: '0.8rem', color: '#888', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>OTRAS VERSIONES</span>
-                                <div style={{ display: 'flex', gap: '10px' }}>
-                                    <div style={{ width: '60px', border: '2px solid #c5a059', borderRadius: '6px', overflow: 'hidden', cursor: 'pointer' }}>
-                                        <img src={cartaSeleccionada.i} alt="Versión" style={{ width: '100%', display: 'block' }} />
+                                {/* Insignias con toda la información detallada */}
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem', color: '#c5a059' }}>
+                                        Edición: {EDICIONES_MAP[cartaSeleccionada.e] || cartaSeleccionada.e}
+                                    </span>
+                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem', color: '#c5a059' }}>
+                                        Tipo: {TIPOS_MAP[cartaSeleccionada.t] || cartaSeleccionada.t}
+                                    </span>
+                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem', color: '#c5a059' }}>
+                                        Frecuencia: {FRECUENCIAS_MAP[cartaSeleccionada.f] || cartaSeleccionada.f}
+                                    </span>
+                                    {cartaSeleccionada.r && cartaSeleccionada.r.length > 0 && (
+                                        <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem', color: '#c5a059' }}>
+                                            Raza: {cartaSeleccionada.r.map(rId => RAZAS_MAP[rId] || rId).join(', ')}
+                                        </span>
+                                    )}
+                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                        ID: {cartaSeleccionada.u}
+                                    </span>
+                                    {cartaSeleccionada.c !== undefined && cartaSeleccionada.c !== null && (
+                                        <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                            Coste: {cartaSeleccionada.c}
+                                        </span>
+                                    )}
+                                    {cartaSeleccionada.z !== undefined && cartaSeleccionada.z !== null && (
+                                        <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '6px 12px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                            Fuerza: {cartaSeleccionada.z}
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div style={{ backgroundColor: '#121212', border: '1px solid #333', borderRadius: '8px', padding: '15px', marginBottom: '20px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', color: '#c5a059', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                        <span>Habilidad</span>
+                                        <span>&#9650;</span>
+                                    </div>
+                                    <p style={{ fontSize: '0.9rem', lineHeight: '1.5', color: '#ccc', whiteSpace: 'pre-line', margin: 0 }}>
+                                        {cartaSeleccionada.h || "Sin habilidad descrita."}
+                                    </p>
+                                </div>
+
+                                <button 
+                                    onClick={() => navigator.clipboard.writeText(cartaSeleccionada.h)}
+                                    style={{ width: '100%', backgroundColor: '#2a2a2a', color: '#fff', border: '1px solid #444', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '20px' }}
+                                >
+                                    Copiar Habilidad
+                                </button>
+
+                                {/* Sección Otras Versiones */}
+                                <div>
+                                    <span style={{ fontSize: '0.8rem', color: '#888', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>OTRAS VERSIONES</span>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <div style={{ width: '60px', border: '2px solid #c5a059', borderRadius: '6px', overflow: 'hidden', cursor: 'pointer' }}>
+                                            <img src={cartaSeleccionada.i} alt="Versión" style={{ width: '100%', display: 'block' }} />
+                                        </div>
                                     </div>
                                 </div>
                             </div>

@@ -132,7 +132,6 @@ export default function DeckBuilder() {
 
         const mazoId = idMazo || Date.now();
 
-        // Filtramos para guardar solo los datos vitales y aligerar Firestore
         const optimizarLista = (lista) => lista.map(item => ({
             cantidad: item.cantidad,
             carta: {
@@ -312,13 +311,21 @@ export default function DeckBuilder() {
 
             {/* PANEL DERECHO */}
             <div style={{ flex: '1', display: 'flex', flexDirection: 'column', backgroundColor: '#181818', padding: '20px', minWidth: '350px' }}>
-                <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <input 
-                        type="text" 
-                        value={nombreMazo} 
-                        onChange={(e) => setNombreMazo(e.target.value)}
-                        style={{ fontSize: '1.2rem', fontWeight: 'bold', backgroundColor: 'transparent', border: 'none', borderBottom: '2px solid #c5a059', color: '#fff', outline: 'none', padding: '5px 0' }}
-                    />
+                
+                {/* Cabecera del Panel Derecho */}
+                <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    
+                    {/* Input de Nombre del Mazo Clarificado */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#c5a059', whiteSpace: 'nowrap' }}>Nombre del Mazo:</span>
+                        <input 
+                            type="text" 
+                            value={nombreMazo} 
+                            onChange={(e) => setNombreMazo(e.target.value)}
+                            style={{ flex: 1, fontSize: '1.2rem', fontWeight: 'bold', backgroundColor: 'transparent', border: 'none', borderBottom: '2px solid #c5a059', color: '#fff', outline: 'none', padding: '5px 0' }}
+                        />
+                    </div>
+
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <select 
                             value={formato} 
@@ -332,8 +339,19 @@ export default function DeckBuilder() {
                             {esJugable ? '✔ Mazo Jugable' : 'Borrador'}
                         </span>
                     </div>
+
+                    {/* Botón de Guardar Anclado Arriba */}
+                    <div>
+                        <button 
+                            onClick={guardarMazo}
+                            style={{ width: '100%', backgroundColor: '#c5a059', color: '#121212', border: 'none', padding: '12px', borderRadius: '6px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}
+                        >
+                            Guardar Mazo
+                        </button>
+                    </div>
                 </div>
 
+                {/* Pestañas (Main / Side) */}
                 <div style={{ display: 'flex', borderBottom: '1px solid #333', marginBottom: '15px' }}>
                     <button 
                         onClick={() => setDestinoSeleccionado('MAIN')}
@@ -349,21 +367,13 @@ export default function DeckBuilder() {
                     </button>
                 </div>
 
+                {/* Lista de Cartas Scrolleable */}
                 <div style={{ flex: '1', overflowY: 'auto', paddingRight: '5px' }}>
                     {destinoSeleccionado === 'MAIN' ? (
                         mazoPrincipal.length > 0 ? mazoPrincipal.map(item => <RenderItemMazo key={item.carta.u} item={item} esSide={false} />) : <div style={{ color: '#666', textAlign: 'center', marginTop: '40px' }}>El mazo principal está vacío. Haz clic en el "+" de una carta para añadirla.</div>
                     ) : (
                         sideDeck.length > 0 ? sideDeck.map(item => <RenderItemMazo key={item.carta.u} item={item} esSide={true} />) : <div style={{ color: '#666', textAlign: 'center', marginTop: '40px' }}>El side deck está vacío.</div>
                     )}
-                </div>
-
-                <div style={{ paddingTop: '20px', borderTop: '1px solid #333', marginTop: '10px' }}>
-                    <button 
-                        onClick={guardarMazo}
-                        style={{ width: '100%', backgroundColor: '#c5a059', color: '#121212', border: 'none', padding: '12px', borderRadius: '6px', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer' }}
-                    >
-                        Guardar Mazo
-                    </button>
                 </div>
             </div>
 
@@ -393,33 +403,54 @@ export default function DeckBuilder() {
                 </div>
             )}
 
-            {/* Modal de Detalle de Carta */}
+            {/* Modal de Detalle de Carta - Modificado para integrar la X */}
             {cartaSeleccionada && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
-                    <div style={{ display: 'flex', gap: '20px', maxWidth: '900px', width: '100%', alignItems: 'center', position: 'relative' }}>
-                        <button onClick={() => setCartaSeleccionada(null)} style={{ position: 'absolute', top: '-40px', right: '0', background: 'none', border: 'none', color: '#fff', fontSize: '2rem', cursor: 'pointer' }}>&times;</button>
+                    <div style={{ display: 'flex', gap: '20px', maxWidth: '900px', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
                         
+                        {/* Carta Izquierda */}
                         <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
                             <img src={cartaSeleccionada.i} alt={cartaSeleccionada.n} style={{ maxHeight: '80vh', maxWidth: '100%', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.9)' }} />
                         </div>
 
-                        <div style={{ width: '350px', backgroundColor: '#181818', border: '1px solid #333', borderRadius: '12px', padding: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', maxHeight: '80vh', overflowY: 'auto' }}>
-                            <h2 style={{ fontSize: '1.5rem', color: '#fff', marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px', textTransform: 'uppercase' }}>{cartaSeleccionada.n}</h2>
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                                <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', color: '#c5a059' }}>{TIPOS_MAP[cartaSeleccionada.t] || cartaSeleccionada.t}</span>
-                                {cartaSeleccionada.c !== undefined && cartaSeleccionada.c !== null && <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>Coste: {cartaSeleccionada.c}</span>}
+                        {/* Panel de Información estructurado con cabecera fija */}
+                        <div style={{ width: '350px', backgroundColor: '#181818', border: '1px solid #333', borderRadius: '12px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', maxHeight: '80vh' }}>
+                            
+                            {/* Cabecera Fija para la X */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 15px 0 15px' }}>
+                                <button 
+                                    onClick={() => setCartaSeleccionada(null)} 
+                                    style={{ background: 'none', border: 'none', color: '#888', fontSize: '2rem', cursor: 'pointer', lineHeight: '1', transition: 'color 0.2s' }}
+                                    onMouseOver={(e) => e.target.style.color = '#fff'}
+                                    onMouseOut={(e) => e.target.style.color = '#888'}
+                                >
+                                    &times;
+                                </button>
                             </div>
-                            <div style={{ backgroundColor: '#121212', border: '1px solid #333', borderRadius: '8px', padding: '15px', marginBottom: '20px' }}>
-                                <span style={{ display: 'block', marginBottom: '10px', color: '#c5a059', fontWeight: 'bold', fontSize: '0.85rem' }}>Habilidad</span>
-                                <p style={{ fontSize: '0.85rem', lineHeight: '1.5', color: '#ccc', margin: 0, whiteSpace: 'pre-line' }}>{cartaSeleccionada.h || "Sin habilidad descrita."}</p>
+                            
+                            {/* Cuerpo del panel scrolleable */}
+                            <div style={{ padding: '0 20px 20px 20px', overflowY: 'auto' }}>
+                                <h2 style={{ fontSize: '1.5rem', color: '#fff', marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px', textTransform: 'uppercase' }}>{cartaSeleccionada.n}</h2>
+                                
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', color: '#c5a059' }}>{TIPOS_MAP[cartaSeleccionada.t] || cartaSeleccionada.t}</span>
+                                    {cartaSeleccionada.c !== undefined && cartaSeleccionada.c !== null && <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>Coste: {cartaSeleccionada.c}</span>}
+                                </div>
+                                
+                                <div style={{ backgroundColor: '#121212', border: '1px solid #333', borderRadius: '8px', padding: '15px', marginBottom: '20px' }}>
+                                    <span style={{ display: 'block', marginBottom: '10px', color: '#c5a059', fontWeight: 'bold', fontSize: '0.85rem' }}>Habilidad</span>
+                                    <p style={{ fontSize: '0.85rem', lineHeight: '1.5', color: '#ccc', margin: 0, whiteSpace: 'pre-line' }}>{cartaSeleccionada.h || "Sin habilidad descrita."}</p>
+                                </div>
+                                
+                                <button 
+                                    onClick={() => { agregarCarta(cartaSeleccionada); setCartaSeleccionada(null); }}
+                                    style={{ width: '100%', backgroundColor: '#1e3a23', color: '#6bff84', border: '1px solid #2e5a33', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                >
+                                    Añadir al Mazo
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => { agregarCarta(cartaSeleccionada); setCartaSeleccionada(null); }}
-                                style={{ width: '100%', backgroundColor: '#1e3a23', color: '#6bff84', border: '1px solid #2e5a33', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                            >
-                                Añadir al Mazo
-                            </button>
                         </div>
+
                     </div>
                 </div>
             )}
