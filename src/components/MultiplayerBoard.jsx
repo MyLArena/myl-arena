@@ -12,7 +12,8 @@ const invertBoardState = (state) => {
     oroPagado: state.opOroPagado, opOroPagado: state.oroPagado,
     oroReserva: state.opOroReserva, opOroReserva: state.oroReserva,
     cementerio: state.opCementerio, opCementerio: state.cementerio,
-    destierro: state.opDestierro, opDestierro: state.destierro
+    destierro: state.opDestierro, opDestierro: state.destierro,
+    topRevelado: state.opTopRevelado, opTopRevelado: state.topRevelado
   };
 };
 
@@ -20,6 +21,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [inspectCard, setInspectCard] = useState(null);
   const [deckMenuOpen, setDeckMenuOpen] = useState(false);
+  const [opDeckMenuOpen, setOpDeckMenuOpen] = useState(false);
   const [viewingZone, setViewingZone] = useState(null); 
   const [revealedTopModal, setRevealedTopModal] = useState(null);
   const [privateTopModal, setPrivateTopModal] = useState(null);
@@ -53,7 +55,8 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     ataque: [], defensa: [], apoyo: [],
     oroPagado: [], oroReserva: [], cementerio: [], destierro: [],
     opMazo: [], opMano: [], opCementerio: [], opDestierro: [], opOroPagado: [], opOroReserva: [],
-    opAtaque: [], opDefensa: [], opApoyo: []
+    opAtaque: [], opDefensa: [], opApoyo: [],
+    topRevelado: false, opTopRevelado: false
   });
 
   const addLog = useCallback((msg) => {
@@ -194,7 +197,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
 
   const getZoneOfCard = useCallback((instanciaId) => {
     for (const [zona, cartas] of Object.entries(boardState)) {
-      if (cartas.some(c => c.instanciaId === instanciaId)) return zona;
+      if (Array.isArray(cartas) && cartas.some(c => c.instanciaId === instanciaId)) return zona;
     }
     return null;
   }, [boardState]);
@@ -203,41 +206,32 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
   const handleResetDeck = () => {
     setAndSyncBoardState(prev => {
       const todasLasCartasPropias = [
-        ...prev.mazo,
-        ...prev.mano,
-        ...prev.ataque,
-        ...prev.defensa,
-        ...prev.apoyo,
-        ...prev.oroPagado,
-        ...prev.oroReserva,
-        ...prev.cementerio,
-        ...prev.destierro
+        ...prev.mazo, ...prev.mano, ...prev.ataque, ...prev.defensa, ...prev.apoyo,
+        ...prev.oroPagado, ...prev.oroReserva, ...prev.cementerio, ...prev.destierro
       ];
 
       const mazoReinicio = todasLasCartasPropias.map(c => ({
-        ...c,
-        rotation: 0,
-        faceDown: false,
-        groupId: null,
-        stats: { fuerza: 0, fuerzaPermanente: 0 }
+        ...c, rotation: 0, faceDown: false, groupId: null, stats: { fuerza: 0, fuerzaPermanente: 0 }
       })).sort(() => Math.random() - 0.5);
 
       return {
-        ...prev,
-        mazo: mazoReinicio,
-        mano: [],
-        ataque: [],
-        defensa: [],
-        apoyo: [],
-        oroPagado: [],
-        oroReserva: [],
-        cementerio: [],
-        destierro: []
+        ...prev, mazo: mazoReinicio, mano: [], ataque: [], defensa: [], apoyo: [],
+        oroPagado: [], oroReserva: [], cementerio: [], destierro: []
       };
     });
 
     emitLog("Ha reiniciado su mazo devolviendo todas las cartas al mazo principal y barajándolo.");
     setDeckMenuOpen(false);
+  };
+
+  // --- MECÁNICA: OUIJA (PRIMERA DESCUBIERTA) ---
+  const toggleTopRevelado = (lado = 'local') => {
+    setAndSyncBoardState(prev => ({
+      ...prev,
+      ...(lado === 'local' ? { topRevelado: !prev.topRevelado } : { opTopRevelado: !prev.opTopRevelado })
+    }));
+    setDeckMenuOpen(false);
+    setOpDeckMenuOpen(false);
   };
 
   // --- MECÁNICA: INTERCAMBIO DE SIDE DECK ---
@@ -247,10 +241,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
       if (!carta) return;
 
       setSideDeckCartas(prev => prev.filter(c => c.instanciaId !== cartaId));
-      setAndSyncBoardState(prev => ({
-        ...prev,
-        mazo: [...prev.mazo, carta]
-      }));
+      setAndSyncBoardState(prev => ({ ...prev, mazo: [...prev.mazo, carta] }));
       emitLog("Movió una carta del Side Deck al Mazo.");
     } else {
       if (sideDeckCartas.length >= 15) {
@@ -261,10 +252,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
       const carta = boardState.mazo.find(c => c.instanciaId === cartaId);
       if (!carta) return;
 
-      setAndSyncBoardState(prev => ({
-        ...prev,
-        mazo: prev.mazo.filter(c => c.instanciaId !== cartaId)
-      }));
+      setAndSyncBoardState(prev => ({ ...prev, mazo: prev.mazo.filter(c => c.instanciaId !== cartaId) }));
       setSideDeckCartas(prev => [...prev, carta]);
       emitLog("Movió una carta del Mazo al Side Deck.");
     }
@@ -272,15 +260,22 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
 
   // --- LÓGICA DRAG & DROP FÍSICA ---
   const handleDragStart = (e, carta, origen) => {
-    let payloadCards = selectedCards.some(c => c.instanciaId === carta.instanciaId) 
-      ? [...selectedCards] 
-      : [carta];
+    let baseSelectedIds = selectedCards.some(c => c.instanciaId === carta.instanciaId) 
+      ? selectedCards.map(c => c.instanciaId) 
+      : [carta.instanciaId];
+
+    let payloadCards = [];
+    Object.values(boardState).flat().forEach(c => {
+       if (c && c.instanciaId && baseSelectedIds.includes(c.instanciaId)) {
+           payloadCards.push({...c});
+       }
+    });
 
     const groupIds = payloadCards.map(c => c.groupId).filter(Boolean);
     if (groupIds.length > 0) {
       Object.values(boardState).flat().forEach(c => {
-        if (c.groupId && groupIds.includes(c.groupId) && !payloadCards.some(pc => pc.instanciaId === c.instanciaId)) {
-          payloadCards.push(c);
+        if (c && c.groupId && groupIds.includes(c.groupId) && !payloadCards.some(pc => pc.instanciaId === c.instanciaId)) {
+          payloadCards.push({...c});
         }
       });
     }
@@ -365,7 +360,9 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
       let newState = { ...prev };
       cartasPayload.forEach(carta => {
         for (const key in newState) {
-          newState[key] = newState[key].filter(c => c.instanciaId !== carta.instanciaId);
+          if (Array.isArray(newState[key])) {
+            newState[key] = newState[key].filter(c => c.instanciaId !== carta.instanciaId);
+          }
         }
       });
       let zonaCartas = [...(newState[zona] || [])];
@@ -381,7 +378,12 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
 
   const accionarMazo = useCallback((accion, lado = 'local') => {
     const zonaMazo = lado === 'local' ? 'mazo' : 'opMazo';
-    if (accion === 'inspeccionar') { setViewingZone(zonaMazo); setDeckMenuOpen(false); return; }
+    if (accion === 'inspeccionar') { 
+      setViewingZone(zonaMazo); 
+      setDeckMenuOpen(false); 
+      setOpDeckMenuOpen(false); 
+      return; 
+    }
 
     if (accion === 'mostrarTop' || accion === 'mirarTop') {
       if (boardState[zonaMazo].length === 0) return;
@@ -395,12 +397,12 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
         if (accion === 'mostrarTop') {
           socketService.emit('syncRevealedTop', newState);
         }
-        
         return newState;
       });
       
       setDeckMenuOpen(false);
-      emitLog(accion === 'mostrarTop' ? "Mostró la carta superior de su mazo." : "Miró la carta superior de su mazo.");
+      setOpDeckMenuOpen(false);
+      emitLog(accion === 'mostrarTop' ? `Mostró la carta superior del mazo ${lado === 'local' ? '' : 'rival'}.` : `Miró la carta superior del mazo ${lado === 'local' ? '' : 'rival'}.`);
       return;
     }
 
@@ -410,19 +412,25 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
       const mazoCopia = [...prev[zonaMazo]];
       if (accion === 'barajar') {
         mazoCopia.sort(() => Math.random() - 0.5);
-        emitLog("Mazo barajado.");
+        emitLog(`Mazo ${lado === 'local' ? 'propio' : 'rival'} barajado.`);
         return { ...prev, [zonaMazo]: mazoCopia };
       }
+      
       const cartaExtraida = mazoCopia.shift();
       const nuevoEstado = { ...prev, [zonaMazo]: mazoCopia };
 
-      if (lado === 'local') {
-        if (accion === 'robar') { nuevoEstado.mano = [...prev.mano, cartaExtraida]; emitLog("Robó una carta."); }
-        if (accion === 'botar') { nuevoEstado.cementerio = [...prev.cementerio, cartaExtraida]; emitLog("Botó una carta."); }
-        if (accion === 'desterrar') { nuevoEstado.destierro = [...prev.destierro, cartaExtraida]; emitLog("Desterró una carta del mazo."); }
-      }
+      const targetMano = lado === 'local' ? 'mano' : 'opMano';
+      const targetCementerio = lado === 'local' ? 'cementerio' : 'opCementerio';
+      const targetDestierro = lado === 'local' ? 'destierro' : 'opDestierro';
+
+      if (accion === 'robar') { nuevoEstado[targetMano] = [...prev[targetMano], cartaExtraida]; emitLog(`Robó una carta ${lado === 'local' ? '' : 'del rival'}.`); }
+      if (accion === 'botar') { nuevoEstado[targetCementerio] = [...prev[targetCementerio], cartaExtraida]; emitLog(`Botó una carta ${lado === 'local' ? '' : 'del rival'}.`); }
+      if (accion === 'desterrar') { nuevoEstado[targetDestierro] = [...prev[targetDestierro], cartaExtraida]; emitLog(`Desterró una carta del mazo ${lado === 'local' ? '' : 'rival'}.`); }
+      
       return nuevoEstado;
     });
+    setDeckMenuOpen(false);
+    setOpDeckMenuOpen(false);
   }, [boardState, emitLog, setAndSyncBoardState]);
 
   useEffect(() => {
@@ -439,10 +447,10 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
           selectedCards.forEach(c => modificarCarta(c.instanciaId, getZoneOfCard(c.instanciaId), 'voltear'));
         }
         if (e.key === 'Delete' && !e.shiftKey) {
-          selectedCards.forEach(c => moverCarta(c.instanciaId, getZoneOfCard(c.instanciaId), 'cementerio'));
+          selectedCards.forEach(c => moverCarta(c.instanciaId, getZoneOfCard(c.instanciaId), getZoneOfCard(c.instanciaId).startsWith('op') ? 'opCementerio' : 'cementerio'));
         }
         if (e.key === 'Delete' && e.shiftKey) {
-          selectedCards.forEach(c => moverCarta(c.instanciaId, getZoneOfCard(c.instanciaId), 'destierro'));
+          selectedCards.forEach(c => moverCarta(c.instanciaId, getZoneOfCard(c.instanciaId), getZoneOfCard(c.instanciaId).startsWith('op') ? 'opDestierro' : 'destierro'));
         }
       }
     };
@@ -475,27 +483,44 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
 
   const moverCarta = (instanciaId, zonaOrigen, zonaDestino) => {
     if (zonaOrigen === zonaDestino) { setActiveCardMenu(null); return; }
-    const cartaBase = boardState[zonaOrigen].find(c => c.instanciaId === instanciaId);
-    if (!cartaBase) return;
 
-    let payload = selectedCards.some(c => c.instanciaId === instanciaId) ? [...selectedCards] : [cartaBase];
-    const groupIds = payload.map(c => c.groupId).filter(Boolean);
-    if (groupIds.length > 0) {
-      Object.values(boardState).flat().forEach(c => {
-        if (c.groupId && groupIds.includes(c.groupId) && !payload.some(pc => pc.instanciaId === c.instanciaId)) payload.push(c);
-      });
-    }
+    let baseIds = selectedCards.some(c => c.instanciaId === instanciaId) 
+      ? selectedCards.map(c => c.instanciaId) 
+      : [instanciaId];
 
     setAndSyncBoardState(prev => {
       let newState = { ...prev };
-      payload.forEach(carta => {
-        for (const key in newState) newState[key] = newState[key].filter(c => c.instanciaId !== carta.instanciaId);
+      
+      let payload = [];
+      Object.values(newState).flat().forEach(c => {
+         if (c && c.instanciaId && baseIds.includes(c.instanciaId)) {
+             payload.push({...c});
+         }
       });
-      let nuevoDestino = [...newState[zonaDestino]];
+
+      const groupIds = payload.map(c => c.groupId).filter(Boolean);
+      if (groupIds.length > 0) {
+        Object.values(newState).flat().forEach(c => {
+          if (c && c.groupId && groupIds.includes(c.groupId) && !payload.some(pc => pc.instanciaId === c.instanciaId)) {
+            payload.push({...c});
+          }
+        });
+      }
+
+      payload.forEach(carta => {
+        for (const key in newState) {
+          if (Array.isArray(newState[key])) {
+            newState[key] = newState[key].filter(c => c.instanciaId !== carta.instanciaId);
+          }
+        }
+      });
+
+      let nuevoDestino = [...(newState[zonaDestino] || [])];
       payload.forEach(carta => {
         if (zonaDestino.toLowerCase().includes('mazo')) nuevoDestino = [carta, ...nuevoDestino];
         else nuevoDestino.push(carta);
       });
+      
       newState[zonaDestino] = nuevoDestino;
       return newState;
     });
@@ -505,20 +530,34 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
   };
 
   const moverAlFondoMazo = (instanciaId, zonaOrigen, esRival = false) => {
-    const cartaBase = boardState[zonaOrigen].find(c => c.instanciaId === instanciaId);
-    if (!cartaBase) return;
-
-    let payload = selectedCards.some(c => c.instanciaId === instanciaId) ? [...selectedCards] : [cartaBase];
+    let baseIds = selectedCards.some(c => c.instanciaId === instanciaId) 
+      ? selectedCards.map(c => c.instanciaId) 
+      : [instanciaId];
+      
     const zonaMazoDestino = esRival ? 'opMazo' : 'mazo';
 
     setAndSyncBoardState(prev => {
       let newState = { ...prev };
-      payload.forEach(carta => {
-        for (const key in newState) newState[key] = newState[key].filter(c => c.instanciaId !== carta.instanciaId);
+      
+      let payload = [];
+      Object.values(newState).flat().forEach(c => {
+         if (c && c.instanciaId && baseIds.includes(c.instanciaId)) {
+             payload.push({...c});
+         }
       });
+
+      payload.forEach(carta => {
+        for (const key in newState) {
+          if (Array.isArray(newState[key])) {
+            newState[key] = newState[key].filter(c => c.instanciaId !== carta.instanciaId);
+          }
+        }
+      });
+      
       let nuevoMazo = [...newState[zonaMazoDestino]];
       payload.forEach(carta => { nuevoMazo.push(carta); });
       newState[zonaMazoDestino] = nuevoMazo;
+      
       return newState;
     });
     
@@ -550,12 +589,14 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     setAndSyncBoardState(prev => {
       let newState = { ...prev };
       for (const key in newState) {
-        newState[key] = newState[key].map(c => {
-          if ((targetGroupId && c.groupId === targetGroupId) || c.instanciaId === instanciaId) {
-            return { ...c, groupId: null };
-          }
-          return c;
-        });
+        if (Array.isArray(newState[key])) {
+          newState[key] = newState[key].map(c => {
+            if ((targetGroupId && c.groupId === targetGroupId) || c.instanciaId === instanciaId) {
+              return { ...c, groupId: null };
+            }
+            return c;
+          });
+        }
       }
       return newState;
     });
@@ -688,13 +729,11 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     );
   };
 
-  // --- COMPONENTE RENDERIZADOR DE CARTA ---
   const renderCard = (carta, zona, isHand = false, customOnClick = null) => {
     const cardClass = isHand ? 'card-item-hand' : 'card-item-board';
     const isSelected = selectedCards.some(c => c.instanciaId === carta.instanciaId) ? 'card-selected' : '';
     const isGrouped = carta.groupId ? 'card-grouped' : '';
     
-    // Agregamos la excepción de que no se oculte si tiene la etiqueta "reveladaPublicamente"
     const isHidden = carta.faceDown || 
                      (zona === 'opMano' && !opManoRevelada) || 
                      (zona === 'opMazo' && !carta.reveladaPublicamente);
@@ -771,7 +810,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
   return (
     <div 
       className="arena-container wrapper-bounds-fixed"
-      onClick={() => { if(deckMenuOpen) setDeckMenuOpen(false); if(activeCardMenu) setActiveCardMenu(null); }}
+      onClick={() => { if(deckMenuOpen) setDeckMenuOpen(false); if(opDeckMenuOpen) setOpDeckMenuOpen(false); if(activeCardMenu) setActiveCardMenu(null); }}
       onMouseDown={handlePing}
     >
       {pings.map(p => (
@@ -803,42 +842,57 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
       <button onClick={(e) => { e.stopPropagation(); setShowConfirmModal(true); }} className="exit-x-button" title="Abandonar Partida">✕</button>
 
       {/* --- MENÚ CONTEXTUAL GLOBAL --- */}
-      {activeCardMenu && (
-        <div 
-          className="context-menu global-card-context-menu" 
-          style={{ position: 'fixed', top: `${activeCardMenu.y}px`, left: `${activeCardMenu.x}px`, zIndex: 99999 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'rotar')}>Rotar 180°</button>
-          <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'voltear')}>
-            {activeCardMenu.carta.faceDown ? 'Revelar Carta' : 'Voltear (Ocultar)'}
-          </button>
-          <div style={{ height: '1px', backgroundColor: '#444', margin: '4px 0' }}></div>
-          <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'fuerza', 1)}>Sumar Fuerza (+1)</button>
-          <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'resetFuerza')}>Restablecer Fuerza (0)</button>
-          <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'fuerza', -1)}>Restar Fuerza (-1)</button>
+      {activeCardMenu && (() => {
+        const isOp = activeCardMenu.zona.startsWith('op');
+        const dest = {
+          mano: isOp ? 'opMano' : 'mano',
+          mazo: isOp ? 'opMazo' : 'mazo',
+          cementerio: isOp ? 'opCementerio' : 'cementerio',
+          destierro: isOp ? 'opDestierro' : 'destierro',
+          oroPagado: isOp ? 'opOroPagado' : 'oroPagado',
+          oroReserva: isOp ? 'opOroReserva' : 'oroReserva',
+          ataque: isOp ? 'opAtaque' : 'ataque',
+          defensa: isOp ? 'opDefensa' : 'defensa',
+          apoyo: isOp ? 'opApoyo' : 'apoyo'
+        };
 
-          <div style={{ height: '1px', backgroundColor: '#444', margin: '4px 0' }}></div>
-          <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'fuerzaPermanente', 1)}>Sumar Fuerza Perm. (+1)</button>
-          <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'resetFuerzaPermanente')}>Restablecer Fuerza Perm. (0)</button>
-          <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'fuerzaPermanente', -1)}>Restar Fuerza Perm. (-1)</button>
+        return (
+          <div 
+            className="context-menu global-card-context-menu" 
+            style={{ position: 'fixed', top: `${activeCardMenu.y}px`, left: `${activeCardMenu.x}px`, zIndex: 99999 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'rotar')}>Rotar 180°</button>
+            <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'voltear')}>
+              {activeCardMenu.carta.faceDown ? 'Revelar Carta' : 'Voltear (Ocultar)'}
+            </button>
+            <div style={{ height: '1px', backgroundColor: '#444', margin: '4px 0' }}></div>
+            <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'fuerza', 1)}>Sumar Fuerza (+1)</button>
+            <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'resetFuerza')}>Restablecer Fuerza (0)</button>
+            <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'fuerza', -1)}>Restar Fuerza (-1)</button>
 
-          <div style={{ height: '1px', backgroundColor: '#444', margin: '4px 0' }}></div>
-          {selectedCards.length > 1 && <button onClick={agruparSeleccionadas}>Unir Cartas (Attachment)</button>}
-          {activeCardMenu.carta.groupId && <button onClick={() => separarCarta(activeCardMenu.cartaId, activeCardMenu.zona)}>Desacoplar unión</button>}
-          <div style={{ height: '1px', backgroundColor: '#444', margin: '4px 0' }}></div>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'mano')}>Subir a Mano</button>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'mazo')}>Mandar al Mazo (Top)</button>
-          <button onClick={() => moverAlFondoMazo(activeCardMenu.cartaId, activeCardMenu.zona, false)}>Mandar al Fondo del Mazo</button>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'cementerio')}>Mandar al Cementerio</button>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'destierro')}>Mandar al Destierro</button>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'oroPagado')}>Mandar a Oro Pagado</button>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'oroReserva')}>Mandar a Oro Reserva</button>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'ataque')}>Mandar a Ataque</button>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'defensa')}>Mandar a Defensa</button>
-          <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'apoyo')}>Mandar a Apoyo</button>
-        </div>
-      )}
+            <div style={{ height: '1px', backgroundColor: '#444', margin: '4px 0' }}></div>
+            <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'fuerzaPermanente', 1)}>Sumar Fuerza Perm. (+1)</button>
+            <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'resetFuerzaPermanente')}>Restablecer Fuerza Perm. (0)</button>
+            <button onClick={() => modificarCarta(activeCardMenu.cartaId, activeCardMenu.zona, 'fuerzaPermanente', -1)}>Restar Fuerza Perm. (-1)</button>
+
+            <div style={{ height: '1px', backgroundColor: '#444', margin: '4px 0' }}></div>
+            {selectedCards.length > 1 && <button onClick={agruparSeleccionadas}>Unir Cartas (Attachment)</button>}
+            {activeCardMenu.carta.groupId && <button onClick={() => separarCarta(activeCardMenu.cartaId, activeCardMenu.zona)}>Desacoplar unión</button>}
+            <div style={{ height: '1px', backgroundColor: '#444', margin: '4px 0' }}></div>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.mano)}>Subir a Mano</button>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.mazo)}>Mandar al Mazo (Top)</button>
+            <button onClick={() => moverAlFondoMazo(activeCardMenu.cartaId, activeCardMenu.zona, isOp)}>Mandar al Fondo del Mazo</button>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.cementerio)}>Mandar al Cementerio</button>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.destierro)}>Mandar al Destierro</button>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.oroPagado)}>Mandar a Oro Pagado</button>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.oroReserva)}>Mandar a Oro Reserva</button>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.ataque)}>Mandar a Ataque</button>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.defensa)}>Mandar a Defensa</button>
+            <button onClick={() => moverCarta(activeCardMenu.cartaId, activeCardMenu.zona, dest.apoyo)}>Mandar a Apoyo</button>
+          </div>
+        );
+      })()}
 
       {/* --- MODAL SIDE DECK --- */}
       {sideDeckModalOpen && (
@@ -976,7 +1030,6 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
               {revealedTopModal.snapshot.map((c, index) => {
                 const isRevealed = index < revealedTopModal.revealedCount;
                 
-                // Añadimos la propiedad "reveladaPublicamente" para saltarnos la restricción de opMazo
                 const cardModified = { 
                   ...c, 
                   faceDown: !isRevealed, 
@@ -1081,11 +1134,28 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
                   </div>
                 )}
               </div>
-              <div className="drop-zone square-zone mazo-zone" onDrop={(e) => handleDrop(e, 'opMazo')} onDragOver={handleDragOver} onClick={(e) => { e.stopPropagation(); setViewingZone('opMazo'); }}>
+              <div className="drop-zone square-zone mazo-zone" onDrop={(e) => handleDrop(e, 'opMazo')} onDragOver={handleDragOver} onClick={(e) => { e.stopPropagation(); setOpDeckMenuOpen(!opDeckMenuOpen); }}>
                 <div className="mazo-content" style={{ transform: 'rotate(180deg)' }}>
                   <span className="mazo-titulo" style={{fontSize: '0.7rem', color: '#c5a059', fontWeight: 'bold'}}>Mazo Opo</span>
                   <span className="mazo-contador" style={{backgroundColor: '#c5a059', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'}}>{boardState.opMazo.length}</span>
                 </div>
+                {boardState.opTopRevelado && boardState.opMazo.length > 0 && (
+                  <div style={{ pointerEvents: 'none', position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {renderCard({...boardState.opMazo[0], faceDown: false, reveladaPublicamente: true}, 'opMazo')}
+                  </div>
+                )}
+                {opDeckMenuOpen && (
+                  <div className="context-menu mazo-context" onClick={(e) => e.stopPropagation()} style={{ zIndex: 3000, background: '#1a1a1a', border: '1px solid #c5a059', boxShadow: '0 4px 12px rgba(0,0,0,0.8)' }}>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('robar', 'rival'); }}>Mandar a Mano Rival (R)</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('botar', 'rival'); }}>Botar Carta (B)</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('desterrar', 'rival'); }}>Desterrar</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('mostrarTop', 'rival'); }}>Mostrar Carta Superior (T)</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('mirarTop', 'rival'); }}>Mirar Carta Superior</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('inspeccionar', 'rival'); }}>Buscar en mazo rival</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('barajar', 'rival'); }}>Barajar Mazo (S)</button>
+                    <button onClick={(e) => { e.stopPropagation(); toggleTopRevelado('rival'); }} style={{ color: '#88ccff', fontWeight: 'bold' }}>{boardState.opTopRevelado ? 'Ocultar Primera (Ouija)' : 'Revelar Primera (Ouija)'}</button>
+                  </div>
+                )}
               </div>
               <div className="drop-zone square-zone" onClick={(e) => { e.stopPropagation(); setViewingZone('opOroReserva'); }} onDrop={(e) => handleDrop(e, 'opOroReserva')} onDragOver={handleDragOver}>
                 <span className="zone-bg-text" style={{ transform: 'rotate(180deg)', display: 'inline-block' }}>Oro R</span>
@@ -1163,6 +1233,11 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
                   <span className="mazo-titulo" style={{fontSize: '0.7rem', color: '#c5a059', fontWeight: 'bold'}}>Mazo</span>
                   <span className="mazo-contador" style={{backgroundColor: '#c5a059', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'}}>{boardState.mazo.length}</span>
                 </div>
+                {boardState.topRevelado && boardState.mazo.length > 0 && (
+                  <div style={{ pointerEvents: 'none', position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {renderCard({...boardState.mazo[0], faceDown: false, reveladaPublicamente: true}, 'mazo')}
+                  </div>
+                )}
                 {deckMenuOpen && (
                   <div className="context-menu mazo-context" onClick={(e) => e.stopPropagation()} style={{ zIndex: 3000, background: '#1a1a1a', border: '1px solid #c5a059', boxShadow: '0 4px 12px rgba(0,0,0,0.8)' }}>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('robar'); }}>Robar Carta (R)</button>
@@ -1172,6 +1247,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('mirarTop'); }}>Mirar Carta Superior</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('inspeccionar'); }}>Buscar en mazo</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('barajar'); }}>Barajar Mazo (S)</button>
+                    <button onClick={(e) => { e.stopPropagation(); toggleTopRevelado('local'); }} style={{ color: '#88ccff', fontWeight: 'bold' }}>{boardState.topRevelado ? 'Ocultar Primera (Ouija)' : 'Jugar con Primera (Ouija)'}</button>
                     <button onClick={(e) => { e.stopPropagation(); handleResetDeck(); }} style={{ color: '#ff8888', fontWeight: 'bold' }}>🔄 Reiniciar Mazo Completo</button>
                   </div>
                 )}
