@@ -429,8 +429,11 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
       
       return nuevoEstado;
     });
-    setDeckMenuOpen(false);
-    setOpDeckMenuOpen(false);
+
+    if (accion !== 'robar') {
+      setDeckMenuOpen(false);
+      setOpDeckMenuOpen(false);
+    }
   }, [boardState, emitLog, setAndSyncBoardState]);
 
   useEffect(() => {
