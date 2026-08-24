@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { socketService } from '../services/socketService';
 import './SolitaryBoard.css';
 
@@ -59,6 +59,12 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     topRevelado: false, opTopRevelado: false
   });
 
+  // Ref para evitar que cambios en callbacks reinicien el socket de forma cíclica
+  const onSalirRef = useRef(onSalir);
+  useEffect(() => {
+    onSalirRef.current = onSalir;
+  }, [onSalir]);
+
   const addLog = useCallback((msg) => {
     setSystemLogs(prev => {
       const newLogs = [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`];
@@ -71,23 +77,25 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     socketService.emit('syncLog', msg);
   }, [addLog]);
 
+  // Corrección: Separación pura del updater y la emisión de socket
   const setAndSyncBoardState = useCallback((action) => {
     setBoardState(prev => {
       const newState = typeof action === 'function' ? action(prev) : action;
-      setTimeout(() => {
+      queueMicrotask(() => {
         socketService.emit('syncBoard', invertBoardState(newState));
-      }, 0);
+      });
       return newState;
     });
   }, []);
 
+  // Manejo de conexión de Socket estable
   useEffect(() => {
     const actionType = esCreador ? 'create' : 'join';
     socketService.connect(roomCode, actionType);
 
     socketService.on('room_error', (mensaje) => {
       alert(mensaje);
-      if (onSalir) onSalir();
+      if (onSalirRef.current) onSalirRef.current();
     });
 
     socketService.on('request_sync', () => {
@@ -137,7 +145,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     return () => {
       socketService.disconnect();
     };
-  }, [roomCode, esCreador, addLog, setAndSyncBoardState, onSalir]);
+  }, [roomCode, esCreador, addLog, setAndSyncBoardState]);
 
   // --- CARGA DEL MAZO Y SIDE DECK INICIAL ---
   useEffect(() => {
@@ -318,6 +326,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     setSelectedCards([]);
   };
 
+  // Corrección: Inmutabilidad estricta al manipular snapshots en modales
   const handleDropInternalModal = (e, zona, targetIndex = null) => {
     e.preventDefault();
     const cartasData = e.dataTransfer.getData('cartas');
@@ -325,33 +334,33 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     const cartasPayload = JSON.parse(cartasData);
 
     if (revealedTopModal && revealedTopModal.zona === zona) {
-      setRevealedTopModal(prev => {
-        let newSnapshot = [...prev.snapshot];
-        cartasPayload.forEach(c => {
-          newSnapshot = newSnapshot.filter(item => item.instanciaId !== c.instanciaId);
-        });
-        if (targetIndex !== null && targetIndex >= 0) newSnapshot.splice(targetIndex, 0, ...cartasPayload);
-        else newSnapshot.push(...cartasPayload);
-        
-        setAndSyncBoardState(bState => ({ ...bState, [zona]: newSnapshot }));
-        return { ...prev, snapshot: newSnapshot };
-      });
+      let updatedSnapshot = [...revealedTopModal.snapshot].filter(
+        item => !cartasPayload.some(c => c.instanciaId === item.instanciaId)
+      );
+      if (targetIndex !== null && targetIndex >= 0) {
+        updatedSnapshot.splice(targetIndex, 0, ...cartasPayload);
+      } else {
+        updatedSnapshot.push(...cartasPayload);
+      }
+
+      setRevealedTopModal(prev => (prev ? { ...prev, snapshot: updatedSnapshot } : null));
+      setAndSyncBoardState(bState => ({ ...bState, [zona]: updatedSnapshot }));
       setSelectedCards([]);
       return;
     }
 
     if (privateTopModal && privateTopModal.zona === zona) {
-      setPrivateTopModal(prev => {
-        let newSnapshot = [...prev.snapshot];
-        cartasPayload.forEach(c => {
-          newSnapshot = newSnapshot.filter(item => item.instanciaId !== c.instanciaId);
-        });
-        if (targetIndex !== null && targetIndex >= 0) newSnapshot.splice(targetIndex, 0, ...cartasPayload);
-        else newSnapshot.push(...cartasPayload);
-        
-        setAndSyncBoardState(bState => ({ ...bState, [zona]: newSnapshot }));
-        return { ...prev, snapshot: newSnapshot };
-      });
+      let updatedSnapshot = [...privateTopModal.snapshot].filter(
+        item => !cartasPayload.some(c => c.instanciaId === item.instanciaId)
+      );
+      if (targetIndex !== null && targetIndex >= 0) {
+        updatedSnapshot.splice(targetIndex, 0, ...cartasPayload);
+      } else {
+        updatedSnapshot.push(...cartasPayload);
+      }
+
+      setPrivateTopModal(prev => (prev ? { ...prev, snapshot: updatedSnapshot } : null));
+      setAndSyncBoardState(bState => ({ ...bState, [zona]: updatedSnapshot }));
       setSelectedCards([]);
       return;
     }
@@ -436,9 +445,18 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     }
   }, [boardState, emitLog, setAndSyncBoardState]);
 
+  // Corrección: Verificación completa de inputs, textareas, selects y editables
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+      const activeEl = document.activeElement;
+      const isEditing = activeEl && (
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) ||
+        activeEl.isContentEditable ||
+        activeEl.closest('input, select, textarea, [contenteditable="true"]')
+      );
+
+      if (isEditing) return;
+
       const key = e.key.toLowerCase();
       if (key === 'r') accionarMazo('robar');
       if (key === 's') accionarMazo('barajar');
@@ -957,7 +975,7 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
             <p>¿Estás seguro de que deseas salir del encuentro actual?</p>
             <div className="modal-buttons">
               <button className="btn-modal btn-cancel" onClick={() => setShowConfirmModal(false)}>Cancelar</button>
-              <button className="btn-modal btn-confirm" onClick={onSalir}>Salir</button>
+              <button className="btn-modal btn-confirm" onClick={onSalirRef.current}>Salir</button>
             </div>
           </div>
         </div>
