@@ -241,6 +241,26 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
     setDeckMenuOpen(false);
     setOpDeckMenuOpen(false);
   };
+  
+  // --- MECÁNICA: AGRUPAR (ORO PAGADO -> RESERVA, ATAQUE -> DEFENSA) ---
+  const agruparMesa = useCallback(() => {
+    setAndSyncBoardState(prev => {
+      const newState = { ...prev };
+      
+      if (newState.oroPagado.length > 0) {
+        newState.oroReserva = [...newState.oroReserva, ...newState.oroPagado];
+        newState.oroPagado = [];
+      }
+      
+      if (newState.ataque.length > 0) {
+        newState.defensa = [...newState.defensa, ...newState.ataque];
+        newState.ataque = [];
+      }
+      
+      return newState;
+    });
+    emitLog("Ha agrupado sus cartas (Oro Pagado a Reserva, Ataque a Defensa).");
+  }, [setAndSyncBoardState, emitLog]);
 
   // --- MECÁNICA: INTERCAMBIO DE SIDE DECK ---
   const intercambiarCartaSideDeck = (cartaId, origenEsSide) => {
@@ -1009,11 +1029,15 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
             <button className="close-inspect" onClick={() => setViewingZone(null)}>✕</button>
             <div className="zone-viewer-header">Inspeccionando: {mapZoneTitle[viewingZone]} ({boardState[viewingZone].length} cartas)</div>
             <div className="zone-viewer-grid" onDragOver={handleDragOver} onDrop={(e) => handleDropInternalModal(e, viewingZone)}>
-              {boardState[viewingZone].map((c, index) => (
-                <div key={c.instanciaId} onDragOver={handleDragOver} onDrop={(e) => { e.stopPropagation(); handleDropInternalModal(e, viewingZone, index); }} style={{ display: 'inline-block' }}>
-                  {renderCard(c, viewingZone)}
-                </div>
-              ))}
+              {boardState[viewingZone].map((c, index) => {
+                // Forzamos que en la inspección las cartas se vean de frente sin alterar su estado real (ocultas) en la mesa
+                const inspectCardObj = { ...c, faceDown: false, reveladaPublicamente: true };
+                return (
+                  <div key={c.instanciaId} onDragOver={handleDragOver} onDrop={(e) => { e.stopPropagation(); handleDropInternalModal(e, viewingZone, index); }} style={{ display: 'inline-block' }}>
+                    {renderCard(inspectCardObj, viewingZone)}
+                  </div>
+                );
+              })}
               {boardState[viewingZone].length === 0 && <p style={{color: '#666', width: '100%', textAlign: 'center', marginTop: '20px'}}>La zona está vacía.</p>}
             </div>
           </div>
@@ -1165,8 +1189,9 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
                     {renderCard({...boardState.opMazo[0], faceDown: false, reveladaPublicamente: true}, 'opMazo')}
                   </div>
                 )}
+                {/* Agregado transform: 'rotate(180deg)' para corregir la vista invertida de este menú */}
                 {opDeckMenuOpen && (
-                  <div className="context-menu mazo-context" onClick={(e) => e.stopPropagation()} style={{ zIndex: 3000, background: '#1a1a1a', border: '1px solid #c5a059', boxShadow: '0 4px 12px rgba(0,0,0,0.8)' }}>
+                  <div className="context-menu mazo-context" onClick={(e) => e.stopPropagation()} style={{ zIndex: 3000, background: '#1a1a1a', border: '1px solid #c5a059', boxShadow: '0 4px 12px rgba(0,0,0,0.8)', transform: 'rotate(180deg)' }}>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('robar', 'rival'); }}>Mandar a Mano Rival (R)</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('botar', 'rival'); }}>Botar Carta (B)</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('desterrar', 'rival'); }}>Desterrar</button>
@@ -1312,17 +1337,32 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
 
       {/* --- ZONA DE MANO --- */}
       <div className="player-hand-zone" onDrop={(e) => handleDrop(e, 'mano')} onDragOver={handleDragOver}>
-        <button
-          className={`btn-reveal-hand btn-reveal-player ${manoRevelada ? 'active' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            const nuevoEstado = !manoRevelada;
-            setManoRevelada(nuevoEstado);
-            addLog(nuevoEstado ? "Has revelado tu mano." : "Has ocultado tu mano.");
-          }}
-        >
-          {manoRevelada ? '👁️ Ocultar Mi Mano' : 'Revelar Mi Mano'}
-        </button>
+        {/* Contenedor que agrupa los botones de mano */}
+        <div style={{ position: 'absolute', right: '10px', top: '-45px', display: 'flex', gap: '10px', zIndex: 10 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              agruparMesa();
+            }}
+            style={{ padding: '8px 16px', background: '#1a1a1a', color: '#c5a059', border: '1px solid #c5a059', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+            title="Mover Oro Pagado a Reserva y Ataque a Defensa"
+          >
+            Agrupar
+          </button>
+          <button
+            className={`btn-reveal-hand btn-reveal-player ${manoRevelada ? 'active' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              const nuevoEstado = !manoRevelada;
+              setManoRevelada(nuevoEstado);
+              addLog(nuevoEstado ? "Has revelado tu mano." : "Has ocultado tu mano.");
+            }}
+            style={{ position: 'static' }} 
+          >
+            {manoRevelada ? '👁️ Ocultar Mi Mano' : 'Revelar Mi Mano'}
+          </button>
+        </div>
+        
         <div className="hand-header">
           <span className="hand-label">Mano ({boardState.mano.length})</span>
         </div>
