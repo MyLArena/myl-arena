@@ -25,6 +25,15 @@ const EDICIONES_MAP = {
     150: "Lootbox 2024", 149: "Secretos Arcanos", 148: "Bestiarium", 137: "Escuadron Mecha"
 };
 
+// Definición del orden requerido para los separadores y clasificación
+const ESTRUCTURA_TIPOS = [
+    { id: 1, label: 'ALIADOS' },
+    { id: 4, label: 'TÓTEMS' },
+    { id: 3, label: 'ARMAS' },
+    { id: 2, label: 'TALISMANES' },
+    { id: 5, label: 'OROS' }
+];
+
 export default function DeckBuilder() {
     const [cartas, setCartas] = useState([]);
     const [busqueda, setBusqueda] = useState('');
@@ -106,10 +115,10 @@ export default function DeckBuilder() {
 
             // Aplicar ordenamiento al mazo
             return nuevoMazo.sort((a, b) => {
-                // Orden jerárquico por ID de tipo (t): 5(Oro) -> 1(Aliado) -> 4(Tótem) -> 3(Arma) -> 2(Talismán)
-                const ordenTipos = { 5: 1, 1: 2, 4: 3, 3: 4, 2: 5 };
-                const tipoA = ordenTipos[a.carta.t] || 99;
-                const tipoB = ordenTipos[b.carta.t] || 99;
+                // Orden jerárquico por ID de tipo (t): 1(Aliado) -> 4(Tótem) -> 3(Arma) -> 2(Talismán) -> 5(Oro)
+                const ordenTipos = { 1: 1, 4: 2, 3: 3, 2: 4, 5: 5 };
+                const tipoA = ordenTipos[Number(a.carta.t)] || 99;
+                const tipoB = ordenTipos[Number(b.carta.t)] || 99;
                 
                 if (tipoA !== tipoB) {
                     return tipoA - tipoB;
@@ -134,7 +143,7 @@ export default function DeckBuilder() {
         const setMazo = esSide ? setSideDeck : setMazoPrincipal;
         setMazo(prev => {
             const existe = prev.find(item => item.carta.u === cartaId);
-            if (existe.cantidad > 1) {
+            if (existe && existe.cantidad > 1) {
                 return prev.map(item => item.carta.u === cartaId ? { ...item, cantidad: item.cantidad - 1 } : item);
             }
             return prev.filter(item => item.carta.u !== cartaId);
@@ -165,7 +174,7 @@ export default function DeckBuilder() {
                 u: item.carta.u, 
                 n: item.carta.n, 
                 i: item.carta.i,
-                t: item.carta.t, // Se añade tipo y coste para mantener el orden al cargar de Firebase
+                t: item.carta.t, 
                 c: item.carta.c
             }
         }));
@@ -244,6 +253,80 @@ export default function DeckBuilder() {
             </div>
         </div>
     );
+
+    // Función para renderizar el mazo agrupado por tipo con separadores y contadores
+    const renderMazoAgrupado = (mazo, esSide) => {
+        if (mazo.length === 0) {
+            return (
+                <div style={{ color: '#666', textAlign: 'center', marginTop: '40px' }}>
+                    {esSide ? 'El side deck está vacío.' : 'El mazo principal está vacío. Haz clic en el "+" de una carta para añadirla.'}
+                </div>
+            );
+        }
+
+        const tiposMapeadosIds = ESTRUCTURA_TIPOS.map(t => t.id);
+        const cartasOtros = mazo.filter(item => !tiposMapeadosIds.includes(Number(item.carta.t)));
+
+        return (
+            <>
+                {ESTRUCTURA_TIPOS.map(tipo => {
+                    const cartasDelTipo = mazo.filter(item => Number(item.carta.t) === tipo.id);
+                    if (cartasDelTipo.length === 0) return null;
+
+                    const totalCartasTipo = cartasDelTipo.reduce((acc, item) => acc + item.cantidad, 0);
+
+                    return (
+                        <div key={tipo.id} style={{ marginBottom: '12px' }}>
+                            {/* Separador de categoría con contador */}
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px', 
+                                color: '#888', 
+                                fontSize: '0.75rem', 
+                                fontWeight: 'bold', 
+                                letterSpacing: '0.5px',
+                                margin: '8px 0 6px 2px',
+                                borderBottom: '1px solid #2a2a2a',
+                                paddingBottom: '4px'
+                            }}>
+                                <span style={{ width: '6px', height: '6px', backgroundColor: '#c5a059', borderRadius: '50%', display: 'inline-block' }}></span>
+                                <span>{tipo.label} ({totalCartasTipo})</span>
+                            </div>
+
+                            {/* Cartas pertenecientes a la categoría */}
+                            {cartasDelTipo.map(item => (
+                                <RenderItemMazo key={item.carta.u} item={item} esSide={esSide} />
+                            ))}
+                        </div>
+                    );
+                })}
+
+                {/* Renderizado de seguridad para cartas con tipo no mapeado */}
+                {cartasOtros.length > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                        <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '8px', 
+                            color: '#888', 
+                            fontSize: '0.75rem', 
+                            fontWeight: 'bold', 
+                            margin: '8px 0 6px 2px',
+                            borderBottom: '1px solid #2a2a2a',
+                            paddingBottom: '4px'
+                        }}>
+                            <span style={{ width: '6px', height: '6px', backgroundColor: '#888', borderRadius: '50%', display: 'inline-block' }}></span>
+                            <span>OTROS ({cartasOtros.reduce((acc, item) => acc + item.cantidad, 0)})</span>
+                        </div>
+                        {cartasOtros.map(item => (
+                            <RenderItemMazo key={item.carta.u} item={item} esSide={esSide} />
+                        ))}
+                    </div>
+                )}
+            </>
+        );
+    };
 
     // Pantallas de bloqueo si no hay sesión
     if (cargandoAuth) {
@@ -344,7 +427,7 @@ export default function DeckBuilder() {
                 {/* Cabecera del Panel Derecho */}
                 <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     
-                    {/* Input de Nombre del Mazo Clarificado */}
+                    {/* Input de Nombre del Mazo */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#c5a059', whiteSpace: 'nowrap' }}>Nombre del Mazo:</span>
                         <input 
@@ -396,12 +479,12 @@ export default function DeckBuilder() {
                     </button>
                 </div>
 
-                {/* Lista de Cartas Scrolleable */}
+                {/* Lista de Cartas Scrolleable con Separadores y Contadores por Tipo */}
                 <div style={{ flex: '1', overflowY: 'auto', paddingRight: '5px' }}>
                     {destinoSeleccionado === 'MAIN' ? (
-                        mazoPrincipal.length > 0 ? mazoPrincipal.map(item => <RenderItemMazo key={item.carta.u} item={item} esSide={false} />) : <div style={{ color: '#666', textAlign: 'center', marginTop: '40px' }}>El mazo principal está vacío. Haz clic en el "+" de una carta para añadirla.</div>
+                        renderMazoAgrupado(mazoPrincipal, false)
                     ) : (
-                        sideDeck.length > 0 ? sideDeck.map(item => <RenderItemMazo key={item.carta.u} item={item} esSide={true} />) : <div style={{ color: '#666', textAlign: 'center', marginTop: '40px' }}>El side deck está vacío.</div>
+                        renderMazoAgrupado(sideDeck, true)
                     )}
                 </div>
             </div>
@@ -432,7 +515,7 @@ export default function DeckBuilder() {
                 </div>
             )}
 
-            {/* Modal de Detalle de Carta - Modificado para integrar la X */}
+            {/* Modal de Detalle de Carta */}
             {cartaSeleccionada && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
                     <div style={{ display: 'flex', gap: '20px', maxWidth: '900px', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
@@ -442,13 +525,13 @@ export default function DeckBuilder() {
                             <img src={cartaSeleccionada.i} alt={cartaSeleccionada.n} style={{ maxHeight: '80vh', maxWidth: '100%', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.9)' }} />
                         </div>
 
-                        {/* Panel de Información estructurado con cabecera fija */}
+                        {/* Panel de Información */}
                         <div style={{ width: '350px', backgroundColor: '#181818', border: '1px solid #333', borderRadius: '12px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', maxHeight: '80vh' }}>
                             
                             {/* Cabecera Fija para la X */}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 15px 0 15px' }}>
                                 <button 
-                                    onClick={() => setCartaSeleccionada(null)} 
+                                    onClick={() => setCartaSeleccionDA(null)} 
                                     style={{ background: 'none', border: 'none', color: '#888', fontSize: '2rem', cursor: 'pointer', lineHeight: '1', transition: 'color 0.2s' }}
                                     onMouseOver={(e) => e.target.style.color = '#fff'}
                                     onMouseOut={(e) => e.target.style.color = '#888'}
