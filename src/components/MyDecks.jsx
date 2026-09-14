@@ -59,19 +59,18 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
         m.nombre && m.nombre.toLowerCase().includes(busqueda.toLowerCase())
     );
 
-    // FUNCIÓN SEGURA DE ORDENAMIENTO (Evita crash de pantalla blanca)
+    // FUNCIÓN SEGURA Y COMPATIBLE DE ORDENAMIENTO (Mismo criterio que DeckBuilder)
     const ordenarCartas = (cartas) => {
         if (!Array.isArray(cartas)) return [];
         
-        // Pesos para ordenar por el tipo clásico de MYL
-        const ordenTipos = {
-            'aliado': 1,
-            'tótem': 2,
-            'totem': 2,
-            'arma': 3,
-            'talismán': 4,
-            'talisman': 4,
-            'oro': 5
+        const mapTipoAPrioridad = (t) => {
+            const val = String(t || '').toLowerCase().trim();
+            if (val === '1' || val === 'aliado') return 1;
+            if (val === '4' || val === 'tótem' || val === 'totem') return 2;
+            if (val === '3' || val === 'arma') return 3;
+            if (val === '2' || val === 'talismán' || val === 'talisman') return 4;
+            if (val === '5' || val === 'oro') return 5;
+            return 99;
         };
 
         return [...cartas].sort((a, b) => {
@@ -79,28 +78,24 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                 const cartaA = a.carta || a || {};
                 const cartaB = b.carta || b || {};
                 
-                // 1. Convertir tipo de forma segura y comparar
-                const tipoA = String(cartaA.t || cartaA.tipo || '').toLowerCase().trim();
-                const tipoB = String(cartaB.t || cartaB.tipo || '').toLowerCase().trim();
-                
-                const pesoA = ordenTipos[tipoA] || 99;
-                const pesoB = ordenTipos[tipoB] || 99;
+                // 1. Comparar jerarquía de tipo: 1(Aliado) -> 4(Tótem) -> 3(Arma) -> 2(Talismán) -> 5(Oro)
+                const pesoA = mapTipoAPrioridad(cartaA.t || cartaA.tipo);
+                const pesoB = mapTipoAPrioridad(cartaB.t || cartaB.tipo);
                 
                 if (pesoA !== pesoB) return pesoA - pesoB;
                 
-                // 2. Si son del mismo tipo, ordenar por coste (descendente)
-                const costeA = Number(cartaA.c || cartaA.coste || 0);
-                const costeB = Number(cartaB.c || cartaB.coste || 0);
+                // 2. Si son del mismo tipo, ordenar por coste (de menor a mayor)
+                const costeA = cartaA.c !== undefined && cartaA.c !== null ? Number(cartaA.c) : (cartaA.coste !== undefined ? Number(cartaA.coste) : 99);
+                const costeB = cartaB.c !== undefined && cartaB.c !== null ? Number(cartaB.c) : (cartaB.coste !== undefined ? Number(cartaB.coste) : 99);
                 
-                if (costeA !== costeB) return costeB - costeA; 
+                if (costeA !== costeB) return costeA - costeB; 
                 
-                // 3. Si tienen el mismo coste, ordenar por nombre (alfabético)
+                // 3. Si tienen el mismo coste y tipo, ordenar por nombre (alfabético)
                 const nombreA = String(cartaA.n || cartaA.nombre || '').toLowerCase();
                 const nombreB = String(cartaB.n || cartaB.nombre || '').toLowerCase();
                 
                 return nombreA.localeCompare(nombreB);
             } catch (error) {
-                // Si algún dato es muy anómalo, lo salta en lugar de crashear la página
                 return 0;
             }
         });

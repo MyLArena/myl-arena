@@ -517,8 +517,14 @@ export default function DeckBuilder() {
 
             {/* Modal de Detalle de Carta */}
             {cartaSeleccionada && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
-                    <div style={{ display: 'flex', gap: '20px', maxWidth: '900px', width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                <div 
+                    onClick={() => setCartaSeleccionada(null)}
+                    style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}
+                >
+                    <div 
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ display: 'flex', gap: '20px', maxWidth: '900px', width: '100%', alignItems: 'center', justifyContent: 'center' }}
+                    >
                         
                         {/* Carta Izquierda */}
                         <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
@@ -531,7 +537,7 @@ export default function DeckBuilder() {
                             {/* Cabecera Fija para la X */}
                             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 15px 0 15px' }}>
                                 <button 
-                                    onClick={() => setCartaSeleccionDA(null)} 
+                                    onClick={() => setCartaSeleccionada(null)} 
                                     style={{ background: 'none', border: 'none', color: '#888', fontSize: '2rem', cursor: 'pointer', lineHeight: '1', transition: 'color 0.2s' }}
                                     onMouseOver={(e) => e.target.style.color = '#fff'}
                                     onMouseOut={(e) => e.target.style.color = '#888'}
