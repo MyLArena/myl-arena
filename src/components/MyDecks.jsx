@@ -10,7 +10,7 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
     const [mazos, setMazos] = useState([]);
     const [busqueda, setBusqueda] = useState('');
     const [mazoSeleccionado, setMazoSeleccionado] = useState(null);
-    const [cartaInspeccionada, setCartaInspeccionada] = useState(null); // Nuevo estado para la inspección de cartas
+    const [cartaInspeccionada, setCartaInspeccionada] = useState(null);
     const [user, setUser] = useState(null);
     const [cargando, setCargando] = useState(true);
 
@@ -19,7 +19,6 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
             setUser(currentUser);
             
             if (currentUser) {
-                // SOLO lee de Firestore si el usuario está logueado
                 try {
                     const querySnapshot = await getDocs(collection(db, `usuarios/${currentUser.uid}/mazos`));
                     const mazosNube = [];
@@ -32,7 +31,6 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                     setMazos([]);
                 }
             } else {
-                // Si no hay usuario, vaciamos los mazos (no usamos localStorage)
                 setMazos([]);
             }
             setCargando(false);
@@ -61,24 +59,53 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
         m.nombre && m.nombre.toLowerCase().includes(busqueda.toLowerCase())
     );
 
-    // Función para ordenar las cartas dentro del mazo (por tipo y luego alfabéticamente por nombre)
+    // FUNCIÓN SEGURA DE ORDENAMIENTO (Evita crash de pantalla blanca)
     const ordenarCartas = (cartas) => {
-        if (!cartas) return [];
-        return [...cartas].sort((a, b) => {
-            const cartaA = a.carta || a;
-            const cartaB = b.carta || b;
-            const nombreA = (cartaA.n || cartaA.nombre || '').toLowerCase();
-            const nombreB = (cartaB.n || cartaB.nombre || '').toLowerCase();
-            
-            const tipoA = (cartaA.t || cartaA.tipo || '').toLowerCase();
-            const tipoB = (cartaB.t || cartaB.tipo || '').toLowerCase();
+        if (!Array.isArray(cartas)) return [];
+        
+        // Pesos para ordenar por el tipo clásico de MYL
+        const ordenTipos = {
+            'aliado': 1,
+            'tótem': 2,
+            'totem': 2,
+            'arma': 3,
+            'talismán': 4,
+            'talisman': 4,
+            'oro': 5
+        };
 
-            if (tipoA !== tipoB) return tipoA.localeCompare(tipoB);
-            return nombreA.localeCompare(nombreB);
+        return [...cartas].sort((a, b) => {
+            try {
+                const cartaA = a.carta || a || {};
+                const cartaB = b.carta || b || {};
+                
+                // 1. Convertir tipo de forma segura y comparar
+                const tipoA = String(cartaA.t || cartaA.tipo || '').toLowerCase().trim();
+                const tipoB = String(cartaB.t || cartaB.tipo || '').toLowerCase().trim();
+                
+                const pesoA = ordenTipos[tipoA] || 99;
+                const pesoB = ordenTipos[tipoB] || 99;
+                
+                if (pesoA !== pesoB) return pesoA - pesoB;
+                
+                // 2. Si son del mismo tipo, ordenar por coste (descendente)
+                const costeA = Number(cartaA.c || cartaA.coste || 0);
+                const costeB = Number(cartaB.c || cartaB.coste || 0);
+                
+                if (costeA !== costeB) return costeB - costeA; 
+                
+                // 3. Si tienen el mismo coste, ordenar por nombre (alfabético)
+                const nombreA = String(cartaA.n || cartaA.nombre || '').toLowerCase();
+                const nombreB = String(cartaB.n || cartaB.nombre || '').toLowerCase();
+                
+                return nombreA.localeCompare(nombreB);
+            } catch (error) {
+                // Si algún dato es muy anómalo, lo salta en lugar de crashear la página
+                return 0;
+            }
         });
     };
 
-    // Pantallas de bloqueo si no hay sesión
     if (cargando) {
         return <div style={{ backgroundColor: '#121212', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#c5a059', fontWeight: 'bold', fontSize: '1.2rem' }}>Cargando mazos...</div>;
     }
@@ -165,7 +192,7 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                 </div>
             )}
 
-            {/* MODAL DE INSPECCIÓN DEL MAZO */}
+            {/* MODAL DE INSPECCIÓN DEL MAZO (Cartas ordenadas, sin separadores visuales) */}
             {mazoSeleccionado && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
                     <div style={{ backgroundColor: '#181818', border: '1px solid #444', borderRadius: '12px', width: '100%', maxWidth: '950px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
@@ -191,7 +218,6 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                                     Mazo Principal ({mazoSeleccionado.mazoPrincipal ? mazoSeleccionado.mazoPrincipal.reduce((acc, i) => acc + i.cantidad, 0) : 0})
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px' }}>
-                                    {/* SE ORDENAN LAS CARTAS ANTES DE MAPEAR */}
                                     {mazoSeleccionado.mazoPrincipal && ordenarCartas(mazoSeleccionado.mazoPrincipal).map((item, index) => {
                                         const cartaData = item.carta || item;
                                         const imgUrl = cartaData.i || cartaData.imagen;
@@ -200,7 +226,7 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                                         return (
                                             <div 
                                                 key={index} 
-                                                onClick={() => setCartaInspeccionada(item)} // EVENTO DE INSPECCION
+                                                onClick={() => setCartaInspeccionada(item)}
                                                 style={{ backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                                             >
                                                 {imgUrl ? (
@@ -223,7 +249,6 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px' }}>
                                     {mazoSeleccionado.sideDeck && mazoSeleccionado.sideDeck.length > 0 ? (
-                                        // SE ORDENAN LAS CARTAS ANTES DE MAPEAR
                                         ordenarCartas(mazoSeleccionado.sideDeck).map((item, index) => {
                                             const cartaData = item.carta || item;
                                             const imgUrl = cartaData.i || cartaData.imagen;
@@ -232,7 +257,7 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                                             return (
                                                 <div 
                                                     key={index}
-                                                    onClick={() => setCartaInspeccionada(item)} // EVENTO DE INSPECCION 
+                                                    onClick={() => setCartaInspeccionada(item)}
                                                     style={{ backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                                                 >
                                                     {imgUrl ? (
@@ -277,7 +302,7 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                 </div>
             )}
 
-            {/* NUEVO: MODAL DE INSPECCIÓN INDIVIDUAL DE CARTA */}
+            {/* MODAL DE INSPECCIÓN INDIVIDUAL DE CARTA */}
             {cartaInspeccionada && (
                 <div 
                     style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, padding: '20px', boxSizing: 'border-box' }}
@@ -294,9 +319,9 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                             ✕
                         </button>
                         {(() => {
-                            const cartaData = cartaInspeccionada.carta || cartaInspeccionada;
+                            const cartaData = cartaInspeccionada.carta || cartaInspeccionada || {};
                             const imgUrl = cartaData.i || cartaData.imagen;
-                            const nombreCarta = cartaData.n || cartaData.nombre;
+                            const nombreCarta = cartaData.n || cartaData.nombre || 'Carta';
                             return imgUrl ? (
                                 <img src={imgUrl} alt={nombreCarta} style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.8)' }} />
                             ) : (
