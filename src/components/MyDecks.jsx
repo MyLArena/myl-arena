@@ -10,6 +10,7 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
     const [mazos, setMazos] = useState([]);
     const [busqueda, setBusqueda] = useState('');
     const [mazoSeleccionado, setMazoSeleccionado] = useState(null);
+    const [cartaInspeccionada, setCartaInspeccionada] = useState(null); // Nuevo estado para la inspección de cartas
     const [user, setUser] = useState(null);
     const [cargando, setCargando] = useState(true);
 
@@ -59,6 +60,23 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
     const mazosFiltrados = mazos.filter(m => 
         m.nombre && m.nombre.toLowerCase().includes(busqueda.toLowerCase())
     );
+
+    // Función para ordenar las cartas dentro del mazo (por tipo y luego alfabéticamente por nombre)
+    const ordenarCartas = (cartas) => {
+        if (!cartas) return [];
+        return [...cartas].sort((a, b) => {
+            const cartaA = a.carta || a;
+            const cartaB = b.carta || b;
+            const nombreA = (cartaA.n || cartaA.nombre || '').toLowerCase();
+            const nombreB = (cartaB.n || cartaB.nombre || '').toLowerCase();
+            
+            const tipoA = (cartaA.t || cartaA.tipo || '').toLowerCase();
+            const tipoB = (cartaB.t || cartaB.tipo || '').toLowerCase();
+
+            if (tipoA !== tipoB) return tipoA.localeCompare(tipoB);
+            return nombreA.localeCompare(nombreB);
+        });
+    };
 
     // Pantallas de bloqueo si no hay sesión
     if (cargando) {
@@ -147,6 +165,7 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                 </div>
             )}
 
+            {/* MODAL DE INSPECCIÓN DEL MAZO */}
             {mazoSeleccionado && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
                     <div style={{ backgroundColor: '#181818', border: '1px solid #444', borderRadius: '12px', width: '100%', maxWidth: '950px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
@@ -172,7 +191,8 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                                     Mazo Principal ({mazoSeleccionado.mazoPrincipal ? mazoSeleccionado.mazoPrincipal.reduce((acc, i) => acc + i.cantidad, 0) : 0})
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px' }}>
-                                    {mazoSeleccionado.mazoPrincipal && mazoSeleccionado.mazoPrincipal.map((item, index) => {
+                                    {/* SE ORDENAN LAS CARTAS ANTES DE MAPEAR */}
+                                    {mazoSeleccionado.mazoPrincipal && ordenarCartas(mazoSeleccionado.mazoPrincipal).map((item, index) => {
                                         const cartaData = item.carta || item;
                                         const imgUrl = cartaData.i || cartaData.imagen;
                                         const nombreCarta = cartaData.n || cartaData.nombre;
@@ -180,7 +200,8 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                                         return (
                                             <div 
                                                 key={index} 
-                                                style={{ backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+                                                onClick={() => setCartaInspeccionada(item)} // EVENTO DE INSPECCION
+                                                style={{ backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                                             >
                                                 {imgUrl ? (
                                                     <img src={imgUrl} alt={nombreCarta} style={{ width: '85px', height: '115px', objectFit: 'cover', borderRadius: '4px' }} />
@@ -202,15 +223,17 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px' }}>
                                     {mazoSeleccionado.sideDeck && mazoSeleccionado.sideDeck.length > 0 ? (
-                                        mazoSeleccionado.sideDeck.map((item, index) => {
+                                        // SE ORDENAN LAS CARTAS ANTES DE MAPEAR
+                                        ordenarCartas(mazoSeleccionado.sideDeck).map((item, index) => {
                                             const cartaData = item.carta || item;
                                             const imgUrl = cartaData.i || cartaData.imagen;
                                             const nombreCarta = cartaData.n || cartaData.nombre;
 
                                             return (
                                                 <div 
-                                                    key={index} 
-                                                    style={{ backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}
+                                                    key={index}
+                                                    onClick={() => setCartaInspeccionada(item)} // EVENTO DE INSPECCION 
+                                                    style={{ backgroundColor: '#222', border: '1px solid #333', borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                                                 >
                                                     {imgUrl ? (
                                                         <img src={imgUrl} alt={nombreCarta} style={{ width: '85px', height: '115px', objectFit: 'cover', borderRadius: '4px' }} />
@@ -250,6 +273,36 @@ export default function MyDecks({ onNavegar, onEditarMazo }) {
                                 Cerrar
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* NUEVO: MODAL DE INSPECCIÓN INDIVIDUAL DE CARTA */}
+            {cartaInspeccionada && (
+                <div 
+                    style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, padding: '20px', boxSizing: 'border-box' }}
+                    onClick={() => setCartaInspeccionada(null)}
+                >
+                    <div 
+                        style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '90vw', maxHeight: '90vh' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button 
+                            onClick={() => setCartaInspeccionada(null)}
+                            style={{ position: 'absolute', top: '-40px', right: '0', backgroundColor: 'transparent', border: 'none', color: '#fff', fontSize: '2rem', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                            ✕
+                        </button>
+                        {(() => {
+                            const cartaData = cartaInspeccionada.carta || cartaInspeccionada;
+                            const imgUrl = cartaData.i || cartaData.imagen;
+                            const nombreCarta = cartaData.n || cartaData.nombre;
+                            return imgUrl ? (
+                                <img src={imgUrl} alt={nombreCarta} style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.8)' }} />
+                            ) : (
+                                <div style={{ width: '300px', height: '420px', backgroundColor: '#2a2a2a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#777', borderRadius: '12px', border: '1px solid #444' }}>Sin imagen</div>
+                            );
+                        })()}
                     </div>
                 </div>
             )}
