@@ -95,11 +95,38 @@ export default function DeckBuilder() {
     const agregarCarta = (carta) => {
         const setMazo = destinoSeleccionado === 'MAIN' ? setMazoPrincipal : setSideDeck;
         setMazo(prev => {
+            let nuevoMazo;
             const existe = prev.find(item => item.carta.u === carta.u);
+            
             if (existe) {
-                return prev.map(item => item.carta.u === carta.u ? { ...item, cantidad: item.cantidad + 1 } : item);
+                nuevoMazo = prev.map(item => item.carta.u === carta.u ? { ...item, cantidad: item.cantidad + 1 } : item);
+            } else {
+                nuevoMazo = [...prev, { carta, cantidad: 1 }];
             }
-            return [...prev, { carta, cantidad: 1 }];
+
+            // Aplicar ordenamiento al mazo
+            return nuevoMazo.sort((a, b) => {
+                // Orden jerárquico por ID de tipo (t): 5(Oro) -> 1(Aliado) -> 4(Tótem) -> 3(Arma) -> 2(Talismán)
+                const ordenTipos = { 5: 1, 1: 2, 4: 3, 3: 4, 2: 5 };
+                const tipoA = ordenTipos[a.carta.t] || 99;
+                const tipoB = ordenTipos[b.carta.t] || 99;
+                
+                if (tipoA !== tipoB) {
+                    return tipoA - tipoB;
+                }
+                
+                // Si son del mismo tipo, ordenar por coste (de menor a mayor)
+                const costeA = a.carta.c !== undefined && a.carta.c !== null ? Number(a.carta.c) : 99;
+                const costeB = b.carta.c !== undefined && b.carta.c !== null ? Number(b.carta.c) : 99;
+                if (costeA !== costeB) {
+                    return costeA - costeB;
+                }
+                
+                // Si tienen el mismo coste y tipo, ordenar alfabéticamente
+                const nombreA = String(a.carta.n || '').toLowerCase();
+                const nombreB = String(b.carta.n || '').toLowerCase();
+                return nombreA.localeCompare(nombreB);
+            });
         });
     };
 
@@ -137,7 +164,9 @@ export default function DeckBuilder() {
             carta: {
                 u: item.carta.u, 
                 n: item.carta.n, 
-                i: item.carta.i  
+                i: item.carta.i,
+                t: item.carta.t, // Se añade tipo y coste para mantener el orden al cargar de Firebase
+                c: item.carta.c
             }
         }));
 
