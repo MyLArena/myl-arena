@@ -445,16 +445,40 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
         return { ...prev, [zonaMazo]: mazoCopia };
       }
       
-      const cartaExtraida = mazoCopia.shift();
+      let cartaExtraida;
+      // Extraemos la carta desde el inicio (shift) o final (pop) según la acción
+      if (accion === 'botarFondo' || accion === 'desterrarFondo') {
+        cartaExtraida = mazoCopia.pop();
+      } else {
+        cartaExtraida = mazoCopia.shift();
+      }
+      
       const nuevoEstado = { ...prev, [zonaMazo]: mazoCopia };
 
       const targetMano = lado === 'local' ? 'mano' : 'opMano';
       const targetCementerio = lado === 'local' ? 'cementerio' : 'opCementerio';
       const targetDestierro = lado === 'local' ? 'destierro' : 'opDestierro';
 
-      if (accion === 'robar') { nuevoEstado[targetMano] = [...prev[targetMano], cartaExtraida]; emitLog(`Robó una carta ${lado === 'local' ? '' : 'del rival'}.`); }
-      if (accion === 'botar') { nuevoEstado[targetCementerio] = [...prev[targetCementerio], cartaExtraida]; emitLog(`Botó una carta ${lado === 'local' ? '' : 'del rival'}.`); }
-      if (accion === 'desterrar') { nuevoEstado[targetDestierro] = [...prev[targetDestierro], cartaExtraida]; emitLog(`Desterró una carta del mazo ${lado === 'local' ? '' : 'rival'}.`); }
+      if (accion === 'robar') { 
+        nuevoEstado[targetMano] = [...prev[targetMano], cartaExtraida]; 
+        emitLog(`Robó una carta ${lado === 'local' ? '' : 'del rival'}.`); 
+      }
+      if (accion === 'botar') { 
+        nuevoEstado[targetCementerio] = [...prev[targetCementerio], cartaExtraida]; 
+        emitLog(`Botó una carta ${lado === 'local' ? '' : 'del rival'}.`); 
+      }
+      if (accion === 'botarFondo') { 
+        nuevoEstado[targetCementerio] = [...prev[targetCementerio], cartaExtraida]; 
+        emitLog(`Botó una carta desde el fondo ${lado === 'local' ? '' : 'del rival'}.`); 
+      }
+      if (accion === 'desterrar') { 
+        nuevoEstado[targetDestierro] = [...prev[targetDestierro], cartaExtraida]; 
+        emitLog(`Desterró una carta del mazo ${lado === 'local' ? '' : 'rival'}.`); 
+      }
+      if (accion === 'desterrarFondo') { 
+        nuevoEstado[targetDestierro] = [...prev[targetDestierro], cartaExtraida]; 
+        emitLog(`Desterró una carta desde el fondo del mazo ${lado === 'local' ? '' : 'rival'}.`); 
+      }
       
       return nuevoEstado;
     });
@@ -1194,7 +1218,9 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
                   <div className="context-menu mazo-context" onClick={(e) => e.stopPropagation()} style={{ zIndex: 3000, background: '#1a1a1a', border: '1px solid #c5a059', boxShadow: '0 4px 12px rgba(0,0,0,0.8)', transform: 'rotate(180deg)' }}>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('robar', 'rival'); }}>Mandar a Mano Rival (R)</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('botar', 'rival'); }}>Botar Carta (B)</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('botarFondo', 'rival'); }}>Botar desde el Fondo</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('desterrar', 'rival'); }}>Desterrar</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('desterrarFondo', 'rival'); }}>Desterrar desde el Fondo</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('mostrarTop', 'rival'); }}>Mostrar Carta Superior (T)</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('mirarTop', 'rival'); }}>Mirar Carta Superior</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('inspeccionar', 'rival'); }}>Buscar en mazo rival</button>
@@ -1288,7 +1314,9 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
                   <div className="context-menu mazo-context" onClick={(e) => e.stopPropagation()} style={{ zIndex: 3000, background: '#1a1a1a', border: '1px solid #c5a059', boxShadow: '0 4px 12px rgba(0,0,0,0.8)' }}>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('robar'); }}>Robar Carta (R)</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('botar'); }}>Botar Carta (B)</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('botarFondo'); }}>Botar desde el Fondo</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('desterrar'); }}>Desterrar</button>
+                    <button onClick={(e) => { e.stopPropagation(); accionarMazo('desterrarFondo'); }}>Desterrar desde el Fondo</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('mostrarTop'); }}>Mostrar Carta Superior (T)</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('mirarTop'); }}>Mirar Carta Superior</button>
                     <button onClick={(e) => { e.stopPropagation(); accionarMazo('inspeccionar'); }}>Buscar en mazo</button>
