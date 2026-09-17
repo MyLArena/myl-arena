@@ -483,7 +483,9 @@ const MultiplayerBoard = ({ mazo, roomCode = "SALA-TEST", esCreador = true, onSa
       return nuevoEstado;
     });
 
-    if (accion !== 'robar') {
+    // --- MODIFICACIÓN AQUÍ: Se agregan las acciones que no deben cerrar el menú ---
+    const accionesContinuas = ['robar', 'botar', 'botarFondo', 'desterrar', 'desterrarFondo'];
+    if (!accionesContinuas.includes(accion)) {
       setDeckMenuOpen(false);
       setOpDeckMenuOpen(false);
     }
