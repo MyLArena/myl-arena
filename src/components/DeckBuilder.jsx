@@ -25,7 +25,6 @@ const EDICIONES_MAP = {
     150: "Lootbox 2024", 149: "Secretos Arcanos", 148: "Bestiarium", 137: "Escuadron Mecha"
 };
 
-// Definición del orden requerido para los separadores y clasificación
 const ESTRUCTURA_TIPOS = [
     { id: 1, label: 'ALIADOS' },
     { id: 4, label: 'TÓTEMS' },
@@ -54,11 +53,8 @@ export default function DeckBuilder() {
     const [idMazo, setIdMazo] = useState(null);
 
     const [mostrarModalDuplicado, setMostrarModalDuplicado] = useState(false);
-    
-    // Estados de Autenticación
     const [user, setUser] = useState(null); 
     const [cargandoAuth, setCargandoAuth] = useState(true);
-    
     const [notificacion, setNotificacion] = useState(null);
 
     const mostrarMensaje = (texto, tipo = 'success') => {
@@ -113,27 +109,19 @@ export default function DeckBuilder() {
                 nuevoMazo = [...prev, { carta, cantidad: 1 }];
             }
 
-            // Aplicar ordenamiento al mazo
             return nuevoMazo.sort((a, b) => {
-                // Orden jerárquico por ID de tipo (t): 1(Aliado) -> 4(Tótem) -> 3(Arma) -> 2(Talismán) -> 5(Oro)
                 const ordenTipos = { 1: 1, 4: 2, 3: 3, 2: 4, 5: 5 };
-                const tipoA = ordenTipos[Number(a.carta.t)] || 99;
-                const tipoB = ordenTipos[Number(b.carta.t)] || 99;
+                const tipoA = ordenTipos[Number(a.carta.t ?? a.carta.tipo)] || 99;
+                const tipoB = ordenTipos[Number(b.carta.t ?? b.carta.tipo)] || 99;
                 
-                if (tipoA !== tipoB) {
-                    return tipoA - tipoB;
-                }
+                if (tipoA !== tipoB) return tipoA - tipoB;
                 
-                // Si son del mismo tipo, ordenar por coste (de menor a mayor)
-                const costeA = a.carta.c !== undefined && a.carta.c !== null ? Number(a.carta.c) : 99;
-                const costeB = b.carta.c !== undefined && b.carta.c !== null ? Number(b.carta.c) : 99;
-                if (costeA !== costeB) {
-                    return costeA - costeB;
-                }
+                const costeA = (a.carta.c ?? a.carta.coste) !== undefined ? Number(a.carta.c ?? a.carta.coste) : 99;
+                const costeB = (b.carta.c ?? b.carta.coste) !== undefined ? Number(b.carta.c ?? b.carta.coste) : 99;
+                if (costeA !== costeB) return costeA - costeB;
                 
-                // Si tienen el mismo coste y tipo, ordenar alfabéticamente
-                const nombreA = String(a.carta.n || '').toLowerCase();
-                const nombreB = String(b.carta.n || '').toLowerCase();
+                const nombreA = String(a.carta.n ?? a.carta.nombre ?? '').toLowerCase();
+                const nombreB = String(b.carta.n ?? b.carta.nombre ?? '').toLowerCase();
                 return nombreA.localeCompare(nombreB);
             });
         });
@@ -172,10 +160,10 @@ export default function DeckBuilder() {
             cantidad: item.cantidad,
             carta: {
                 u: item.carta.u, 
-                n: item.carta.n, 
-                i: item.carta.i,
-                t: item.carta.t, 
-                c: item.carta.c
+                n: item.carta.n ?? item.carta.nombre, 
+                i: item.carta.i ?? item.carta.imagen,
+                t: item.carta.t ?? item.carta.tipo, 
+                c: item.carta.c ?? item.carta.coste
             }
         }));
 
@@ -208,19 +196,17 @@ export default function DeckBuilder() {
         setMostrarModalDuplicado(false);
     };
 
-    const guardarMazo = () => {
-        ejecutarGuardado(false);
-    };
-
-    const confirmarReemplazo = () => {
-        ejecutarGuardado(true);
-    };
+    const guardarMazo = () => ejecutarGuardado(false);
+    const confirmarReemplazo = () => ejecutarGuardado(true);
 
     const obtenerOpciones = (key) => {
-        const valoresRaw = cartas.map(c => c[key]);
+        const mapaClavesAlternas = { e: 'edicion', t: 'tipo', f: 'frecuencia', r: 'raza', c: 'coste', z: 'fuerza' };
+        const keyAlternativa = mapaClavesAlternas[key] || key;
+
+        const valoresRaw = cartas.map(c => c[key] !== undefined ? c[key] : c[keyAlternativa]);
         let valoresPlanos = [];
         valoresRaw.forEach(v => {
-            if (v !== undefined && v !== null) {
+            if (v !== undefined && v !== null && v !== '') {
                 Array.isArray(v) ? v.forEach(subItem => valoresPlanos.push(subItem)) : valoresPlanos.push(v);
             }
         });
@@ -229,32 +215,54 @@ export default function DeckBuilder() {
     };
 
     const cartasFiltradas = cartas.filter(carta => {
-        const coincideBusqueda = carta.n.toLowerCase().includes(busqueda.toLowerCase()) || (carta.h && carta.h.toLowerCase().includes(busqueda.toLowerCase()));
+        const nombreStr = String(carta.n ?? carta.nombre ?? carta.name ?? '').toLowerCase();
+        const habilidadStr = String(carta.h ?? carta.habilidad ?? '').toLowerCase();
+        const queryBusqueda = busqueda.toLowerCase();
+        
+        const coincideBusqueda = nombreStr.includes(queryBusqueda) || habilidadStr.includes(queryBusqueda);
+        
+        const valorEdicion = String(carta.e ?? carta.edicion ?? '');
         const nombreEdicionMapeada = EDICIONES_MAP[filtroEdicion] ? EDICIONES_MAP[filtroEdicion].toLowerCase() : '';
-        const coincideEdicion = filtroEdicion === 'Todas' || String(carta.e) === String(filtroEdicion) || String(carta.edicion) === String(filtroEdicion) || (carta.e && String(carta.e).toLowerCase() === nombreEdicionMapeada) || (carta.edicion && String(carta.edicion).toLowerCase() === nombreEdicionMapeada);
-        const coincideTipo = filtroTipo === 'Todas' || String(carta.t) === String(filtroTipo);
-        const coincideFrecuencia = filtroFrecuencia === 'Todas' || carta.frecuencia === filtroFrecuencia || carta.f === filtroFrecuencia;
-        const coincideRaza = filtroRaza === 'Todas' || carta.raza === Number(filtroRaza) || carta.r === Number(filtroRaza) || (Array.isArray(carta.r) && carta.r.includes(Number(filtroRaza)));
-        const coincideCoste = filtroCoste === 'Todas' || String(carta.c) === String(filtroCoste) || String(carta.coste) === String(filtroCoste);
-        const coincideFuerza = filtroFuerza === 'Todas' || String(carta.z) === String(filtroFuerza) || String(carta.fuerza) === String(filtroFuerza);
+        const coincideEdicion = filtroEdicion === 'Todas' || valorEdicion === String(filtroEdicion) || valorEdicion.toLowerCase() === nombreEdicionMapeada;
+        
+        const valorTipo = String(carta.t ?? carta.tipo ?? '');
+        const coincideTipo = filtroTipo === 'Todas' || valorTipo === String(filtroTipo);
+        
+        const valorFrecuencia = String(carta.f ?? carta.frecuencia ?? '');
+        const coincideFrecuencia = filtroFrecuencia === 'Todas' || valorFrecuencia === String(filtroFrecuencia);
+        
+        const valorRaza = carta.r !== undefined ? carta.r : carta.raza;
+        const coincideRaza = filtroRaza === 'Todas' || 
+                             String(valorRaza) === String(filtroRaza) || 
+                             (Array.isArray(valorRaza) && valorRaza.map(String).includes(String(filtroRaza)));
+                             
+        const valorCoste = String(carta.c ?? carta.coste ?? '');
+        const coincideCoste = filtroCoste === 'Todas' || valorCoste === String(filtroCoste);
+        
+        const valorFuerza = String(carta.z ?? carta.fuerza ?? '');
+        const coincideFuerza = filtroFuerza === 'Todas' || valorFuerza === String(filtroFuerza);
+        
         return coincideBusqueda && coincideEdicion && coincideTipo && coincideFrecuencia && coincideRaza && coincideCoste && coincideFuerza;
     });
 
-    const RenderItemMazo = ({ item, esSide }) => (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#222', padding: '6px 10px', borderRadius: '6px', marginBottom: '4px', border: '1px solid #333' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                <span style={{ color: '#c5a059', fontWeight: 'bold', minWidth: '15px' }}>x{item.cantidad}</span>
-                {item.carta.c !== undefined && item.carta.c !== null && <span style={{ backgroundColor: '#444', color: '#fff', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '0.75rem' }}>{item.carta.c}</span>}
-                <span style={{ color: '#e0e0e0', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.carta.n}>{item.carta.n}</span>
+    const RenderItemMazo = ({ item, esSide }) => {
+        const costeCarta = item.carta.c ?? item.carta.coste;
+        const nombreCarta = item.carta.n ?? item.carta.nombre;
+        return (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#222', padding: '6px 10px', borderRadius: '6px', marginBottom: '4px', border: '1px solid #333' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                    <span style={{ color: '#c5a059', fontWeight: 'bold', minWidth: '15px' }}>x{item.cantidad}</span>
+                    {costeCarta !== undefined && costeCarta !== null && costeCarta !== '' && <span style={{ backgroundColor: '#444', color: '#fff', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '0.75rem' }}>{costeCarta}</span>}
+                    <span style={{ color: '#e0e0e0', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={nombreCarta}>{nombreCarta}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                    <button onClick={() => quitarCarta(item.carta.u, esSide)} style={{ background: '#3a1e1e', color: '#ff6b6b', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
+                    <button onClick={() => agregarCarta(item.carta)} style={{ background: '#1e3a23', color: '#6bff84', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
+                </div>
             </div>
-            <div style={{ display: 'flex', gap: '4px' }}>
-                <button onClick={() => quitarCarta(item.carta.u, esSide)} style={{ background: '#3a1e1e', color: '#ff6b6b', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
-                <button onClick={() => agregarCarta(item.carta)} style={{ background: '#1e3a23', color: '#6bff84', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
-            </div>
-        </div>
-    );
+        );
+    };
 
-    // Función para renderizar el mazo agrupado por tipo con separadores y contadores
     const renderMazoAgrupado = (mazo, esSide) => {
         if (mazo.length === 0) {
             return (
@@ -265,70 +273,40 @@ export default function DeckBuilder() {
         }
 
         const tiposMapeadosIds = ESTRUCTURA_TIPOS.map(t => t.id);
-        const cartasOtros = mazo.filter(item => !tiposMapeadosIds.includes(Number(item.carta.t)));
+        const cartasOtros = mazo.filter(item => !tiposMapeadosIds.includes(Number(item.carta.t ?? item.carta.tipo)));
 
         return (
             <>
                 {ESTRUCTURA_TIPOS.map(tipo => {
-                    const cartasDelTipo = mazo.filter(item => Number(item.carta.t) === tipo.id);
+                    const cartasDelTipo = mazo.filter(item => Number(item.carta.t ?? item.carta.tipo) === tipo.id);
                     if (cartasDelTipo.length === 0) return null;
 
                     const totalCartasTipo = cartasDelTipo.reduce((acc, item) => acc + item.cantidad, 0);
 
                     return (
                         <div key={tipo.id} style={{ marginBottom: '12px' }}>
-                            {/* Separador de categoría con contador */}
-                            <div style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                color: '#888', 
-                                fontSize: '0.75rem', 
-                                fontWeight: 'bold', 
-                                letterSpacing: '0.5px',
-                                margin: '8px 0 6px 2px',
-                                borderBottom: '1px solid #2a2a2a',
-                                paddingBottom: '4px'
-                            }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#888', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.5px', margin: '8px 0 6px 2px', borderBottom: '1px solid #2a2a2a', paddingBottom: '4px' }}>
                                 <span style={{ width: '6px', height: '6px', backgroundColor: '#c5a059', borderRadius: '50%', display: 'inline-block' }}></span>
                                 <span>{tipo.label} ({totalCartasTipo})</span>
                             </div>
-
-                            {/* Cartas pertenecientes a la categoría */}
-                            {cartasDelTipo.map(item => (
-                                <RenderItemMazo key={item.carta.u} item={item} esSide={esSide} />
-                            ))}
+                            {cartasDelTipo.map(item => <RenderItemMazo key={item.carta.u} item={item} esSide={esSide} />)}
                         </div>
                     );
                 })}
 
-                {/* Renderizado de seguridad para cartas con tipo no mapeado */}
                 {cartasOtros.length > 0 && (
                     <div style={{ marginBottom: '12px' }}>
-                        <div style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '8px', 
-                            color: '#888', 
-                            fontSize: '0.75rem', 
-                            fontWeight: 'bold', 
-                            margin: '8px 0 6px 2px',
-                            borderBottom: '1px solid #2a2a2a',
-                            paddingBottom: '4px'
-                        }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#888', fontSize: '0.75rem', fontWeight: 'bold', margin: '8px 0 6px 2px', borderBottom: '1px solid #2a2a2a', paddingBottom: '4px' }}>
                             <span style={{ width: '6px', height: '6px', backgroundColor: '#888', borderRadius: '50%', display: 'inline-block' }}></span>
                             <span>OTROS ({cartasOtros.reduce((acc, item) => acc + item.cantidad, 0)})</span>
                         </div>
-                        {cartasOtros.map(item => (
-                            <RenderItemMazo key={item.carta.u} item={item} esSide={esSide} />
-                        ))}
+                        {cartasOtros.map(item => <RenderItemMazo key={item.carta.u} item={item} esSide={esSide} />)}
                     </div>
                 )}
             </>
         );
     };
 
-    // Pantallas de bloqueo si no hay sesión
     if (cargandoAuth) {
         return <div style={{ backgroundColor: '#121212', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#c5a059', fontWeight: 'bold', fontSize: '1.2rem' }}>Verificando sesión...</div>;
     }
@@ -399,35 +377,34 @@ export default function DeckBuilder() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', paddingBottom: '20px' }}>
-                    {cartasFiltradas.map((carta) => (
-                        <div key={carta.u} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#1a1a1a', border: '1px solid #333', transition: 'transform 0.1s', cursor: 'pointer' }}>
-                            <img 
-                                src={carta.i} alt={carta.n} loading="lazy" 
-                                onClick={() => setCartaSeleccionada(carta)}
-                                style={{ width: '100%', display: 'block', aspectRatio: '3/4', objectFit: 'cover' }} 
-                            />
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); agregarCarta(carta); }}
-                                style={{ position: 'absolute', top: '5px', right: '5px', backgroundColor: '#c5a059', color: '#000', border: 'none', borderRadius: '50%', width: '30px', height: '30px', fontSize: '1.2rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                                title="Añadir al mazo activo"
-                            >
-                                +
-                            </button>
-                            <div style={{ padding: '6px', fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {carta.n}
+                    {cartasFiltradas.map((carta) => {
+                        const nombreCarta = carta.n ?? carta.nombre;
+                        return (
+                            <div key={carta.u} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#1a1a1a', border: '1px solid #333', transition: 'transform 0.1s', cursor: 'pointer' }}>
+                                <img 
+                                    src={carta.i ?? carta.imagen} alt={nombreCarta} loading="lazy" 
+                                    onClick={() => setCartaSeleccionada(carta)}
+                                    style={{ width: '100%', display: 'block', aspectRatio: '3/4', objectFit: 'cover' }} 
+                                />
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); agregarCarta(carta); }}
+                                    style={{ position: 'absolute', top: '5px', right: '5px', backgroundColor: '#c5a059', color: '#000', border: 'none', borderRadius: '50%', width: '30px', height: '30px', fontSize: '1.2rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                                    title="Añadir al mazo activo"
+                                >
+                                    +
+                                </button>
+                                <div style={{ padding: '6px', fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {nombreCarta}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
             {/* PANEL DERECHO */}
             <div style={{ flex: '1', display: 'flex', flexDirection: 'column', backgroundColor: '#181818', padding: '20px', minWidth: '350px' }}>
-                
-                {/* Cabecera del Panel Derecho */}
                 <div style={{ marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    
-                    {/* Input de Nombre del Mazo */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#c5a059', whiteSpace: 'nowrap' }}>Nombre del Mazo:</span>
                         <input 
@@ -452,7 +429,6 @@ export default function DeckBuilder() {
                         </span>
                     </div>
 
-                    {/* Botón de Guardar Anclado Arriba */}
                     <div>
                         <button 
                             onClick={guardarMazo}
@@ -463,7 +439,6 @@ export default function DeckBuilder() {
                     </div>
                 </div>
 
-                {/* Pestañas (Main / Side) */}
                 <div style={{ display: 'flex', borderBottom: '1px solid #333', marginBottom: '15px' }}>
                     <button 
                         onClick={() => setDestinoSeleccionado('MAIN')}
@@ -479,7 +454,6 @@ export default function DeckBuilder() {
                     </button>
                 </div>
 
-                {/* Lista de Cartas Scrolleable con Separadores y Contadores por Tipo */}
                 <div style={{ flex: '1', overflowY: 'auto', paddingRight: '5px' }}>
                     {destinoSeleccionado === 'MAIN' ? (
                         renderMazoAgrupado(mazoPrincipal, false)
@@ -516,62 +490,58 @@ export default function DeckBuilder() {
             )}
 
             {/* Modal de Detalle de Carta */}
-            {cartaSeleccionada && (
-                <div 
-                    onClick={() => setCartaSeleccionada(null)}
-                    style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}
-                >
+            {cartaSeleccionada && (() => {
+                const nombreModal = cartaSeleccionada.n ?? cartaSeleccionada.nombre;
+                const tipoModal = cartaSeleccionada.t ?? cartaSeleccionada.tipo;
+                const costeModal = cartaSeleccionada.c ?? cartaSeleccionada.coste;
+                const habilidadModal = cartaSeleccionada.h ?? cartaSeleccionada.habilidad;
+                const imagenModal = cartaSeleccionada.i ?? cartaSeleccionada.imagen;
+
+                return (
                     <div 
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ display: 'flex', gap: '20px', maxWidth: '900px', width: '100%', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={() => setCartaSeleccionada(null)}
+                        style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}
                     >
-                        
-                        {/* Carta Izquierda */}
-                        <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
-                            <img src={cartaSeleccionada.i} alt={cartaSeleccionada.n} style={{ maxHeight: '80vh', maxWidth: '100%', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.9)' }} />
-                        </div>
-
-                        {/* Panel de Información */}
-                        <div style={{ width: '350px', backgroundColor: '#181818', border: '1px solid #333', borderRadius: '12px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', maxHeight: '80vh' }}>
-                            
-                            {/* Cabecera Fija para la X */}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 15px 0 15px' }}>
-                                <button 
-                                    onClick={() => setCartaSeleccionada(null)} 
-                                    style={{ background: 'none', border: 'none', color: '#888', fontSize: '2rem', cursor: 'pointer', lineHeight: '1', transition: 'color 0.2s' }}
-                                    onMouseOver={(e) => e.target.style.color = '#fff'}
-                                    onMouseOut={(e) => e.target.style.color = '#888'}
-                                >
-                                    &times;
-                                </button>
+                        <div 
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ display: 'flex', gap: '20px', maxWidth: '900px', width: '100%', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                            <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
+                                <img src={imagenModal} alt={nombreModal} style={{ maxHeight: '80vh', maxWidth: '100%', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.9)' }} />
                             </div>
-                            
-                            {/* Cuerpo del panel scrolleable */}
-                            <div style={{ padding: '0 20px 20px 20px', overflowY: 'auto' }}>
-                                <h2 style={{ fontSize: '1.5rem', color: '#fff', marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px', textTransform: 'uppercase' }}>{cartaSeleccionada.n}</h2>
-                                
-                                <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                                    <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', color: '#c5a059' }}>{TIPOS_MAP[cartaSeleccionada.t] || cartaSeleccionada.t}</span>
-                                    {cartaSeleccionada.c !== undefined && cartaSeleccionada.c !== null && <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>Coste: {cartaSeleccionada.c}</span>}
+                            <div style={{ width: '350px', backgroundColor: '#181818', border: '1px solid #333', borderRadius: '12px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', maxHeight: '80vh' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 15px 0 15px' }}>
+                                    <button 
+                                        onClick={() => setCartaSeleccionada(null)} 
+                                        style={{ background: 'none', border: 'none', color: '#888', fontSize: '2rem', cursor: 'pointer', lineHeight: '1', transition: 'color 0.2s' }}
+                                        onMouseOver={(e) => e.target.style.color = '#fff'}
+                                        onMouseOut={(e) => e.target.style.color = '#888'}
+                                    >
+                                        &times;
+                                    </button>
                                 </div>
-                                
-                                <div style={{ backgroundColor: '#121212', border: '1px solid #333', borderRadius: '8px', padding: '15px', marginBottom: '20px' }}>
-                                    <span style={{ display: 'block', marginBottom: '10px', color: '#c5a059', fontWeight: 'bold', fontSize: '0.85rem' }}>Habilidad</span>
-                                    <p style={{ fontSize: '0.85rem', lineHeight: '1.5', color: '#ccc', margin: 0, whiteSpace: 'pre-line' }}>{cartaSeleccionada.h || "Sin habilidad descrita."}</p>
+                                <div style={{ padding: '0 20px 20px 20px', overflowY: 'auto' }}>
+                                    <h2 style={{ fontSize: '1.5rem', color: '#fff', marginBottom: '15px', borderBottom: '1px solid #333', paddingBottom: '10px', textTransform: 'uppercase' }}>{nombreModal}</h2>
+                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                                        <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', color: '#c5a059' }}>{TIPOS_MAP[tipoModal] || tipoModal}</span>
+                                        {costeModal !== undefined && costeModal !== null && costeModal !== '' && <span style={{ backgroundColor: '#222', border: '1px solid #444', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem' }}>Coste: {costeModal}</span>}
+                                    </div>
+                                    <div style={{ backgroundColor: '#121212', border: '1px solid #333', borderRadius: '8px', padding: '15px', marginBottom: '20px' }}>
+                                        <span style={{ display: 'block', marginBottom: '10px', color: '#c5a059', fontWeight: 'bold', fontSize: '0.85rem' }}>Habilidad</span>
+                                        <p style={{ fontSize: '0.85rem', lineHeight: '1.5', color: '#ccc', margin: 0, whiteSpace: 'pre-line' }}>{habilidadModal || "Sin habilidad descrita."}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => { agregarCarta(cartaSeleccionada); setCartaSeleccionada(null); }}
+                                        style={{ width: '100%', backgroundColor: '#1e3a23', color: '#6bff84', border: '1px solid #2e5a33', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                    >
+                                        Añadir al Mazo
+                                    </button>
                                 </div>
-                                
-                                <button 
-                                    onClick={() => { agregarCarta(cartaSeleccionada); setCartaSeleccionada(null); }}
-                                    style={{ width: '100%', backgroundColor: '#1e3a23', color: '#6bff84', border: '1px solid #2e5a33', padding: '12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                                >
-                                    Añadir al Mazo
-                                </button>
                             </div>
                         </div>
-
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div>
     );
 }
