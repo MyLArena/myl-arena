@@ -213,6 +213,13 @@ export default function DeckBuilder() {
             fechaCreacion: new Date().toLocaleDateString()
         };
 
+        // --- SOLUCIÓN ---
+        // Sanitiza el objeto eliminando valores 'undefined' y convirtiéndolos a 'null'
+        // Esto evita el error: FirebaseError: Function setDoc() called with invalid data.
+        const mazoLimpio = JSON.parse(
+            JSON.stringify(mazoAguardar, (key, value) => (value === undefined ? null : value))
+        );
+
         try {
             if (!idMazo && !forzarReemplazo) {
                 const docRef = doc(db, `usuarios/${user.uid}/mazos`, mazoId.toString());
@@ -222,7 +229,8 @@ export default function DeckBuilder() {
                     return;
                 }
             }
-            await setDoc(doc(db, `usuarios/${user.uid}/mazos`, mazoId.toString()), mazoAguardar);
+            // Utilizamos 'mazoLimpio' en el setDoc
+            await setDoc(doc(db, `usuarios/${user.uid}/mazos`, mazoId.toString()), mazoLimpio);
             mostrarMensaje('¡Mazo guardado en la nube exitosamente!');
         } catch (error) {
             console.error("Error al guardar en Firestore:", error);
