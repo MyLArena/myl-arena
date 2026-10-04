@@ -136,8 +136,8 @@ export default function DeckBuilder() {
                 
                 if (tipoA !== tipoB) return tipoA - tipoB;
                 
-                const costeA = (a.carta.c ?? a.carta.coste) !== undefined ? Number(a.carta.c ?? a.carta.coste) : 99;
-                const costeB = (b.carta.c ?? b.carta.coste) !== undefined ? Number(b.carta.c ?? b.carta.coste) : 99;
+                const costeA = (a.carta.c ?? a.carta.coste) !== undefined && (a.carta.c ?? a.carta.coste) !== null ? Number(a.carta.c ?? a.carta.coste) : 99;
+                const costeB = (b.carta.c ?? b.carta.coste) !== undefined && (b.carta.c ?? b.carta.coste) !== null ? Number(b.carta.c ?? b.carta.coste) : 99;
                 if (costeA !== costeB) return costeA - costeB;
                 
                 const nombreA = String(a.carta.n ?? a.carta.nombre ?? '').toLowerCase();
