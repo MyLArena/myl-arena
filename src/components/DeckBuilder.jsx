@@ -39,9 +39,12 @@ const normalizeString = (str) => {
     return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 };
 
+// Función para obtener el ID único seguro de una carta
+const getIdUnico = (carta) => carta?.u ?? carta?.id ?? carta?._id;
+
 // Función para obtener siempre el ID correcto numérico del tipo
 const getTipoId = (carta) => {
-    let val = carta.t ?? carta.tipo;
+    let val = carta?.t ?? carta?.tipo ?? carta?.type;
     if (val === undefined || val === null) return 99;
     
     const numVal = Number(val);
@@ -92,7 +95,7 @@ export default function DeckBuilder() {
 
         async function cargarDatos() {
             const resultado = await fetchCards();
-            setCartas(resultado);
+            setCartas(resultado || []);
         }
         cargarDatos();
 
@@ -117,13 +120,14 @@ export default function DeckBuilder() {
     }, []);
 
     const agregarCarta = (carta) => {
+        const cartaId = getIdUnico(carta);
         const setMazo = destinoSeleccionado === 'MAIN' ? setMazoPrincipal : setSideDeck;
         setMazo(prev => {
             let nuevoMazo;
-            const existe = prev.find(item => item.carta.u === carta.u);
+            const existe = prev.find(item => getIdUnico(item.carta) === cartaId);
             
             if (existe) {
-                nuevoMazo = prev.map(item => item.carta.u === carta.u ? { ...item, cantidad: item.cantidad + 1 } : item);
+                nuevoMazo = prev.map(item => getIdUnico(item.carta) === cartaId ? { ...item, cantidad: item.cantidad + 1 } : item);
             } else {
                 nuevoMazo = [...prev, { carta, cantidad: 1 }];
             }
@@ -136,12 +140,12 @@ export default function DeckBuilder() {
                 
                 if (tipoA !== tipoB) return tipoA - tipoB;
                 
-                const costeA = (a.carta.c ?? a.carta.coste) !== undefined && (a.carta.c ?? a.carta.coste) !== null ? Number(a.carta.c ?? a.carta.coste) : 99;
-                const costeB = (b.carta.c ?? b.carta.coste) !== undefined && (b.carta.c ?? b.carta.coste) !== null ? Number(b.carta.c ?? b.carta.coste) : 99;
+                const costeA = (a.carta.c ?? a.carta.coste ?? a.carta.cost) !== undefined ? Number(a.carta.c ?? a.carta.coste ?? a.carta.cost) : 99;
+                const costeB = (b.carta.c ?? b.carta.coste ?? b.carta.cost) !== undefined ? Number(b.carta.c ?? b.carta.coste ?? b.carta.cost) : 99;
                 if (costeA !== costeB) return costeA - costeB;
                 
-                const nombreA = String(a.carta.n ?? a.carta.nombre ?? '').toLowerCase();
-                const nombreB = String(b.carta.n ?? b.carta.nombre ?? '').toLowerCase();
+                const nombreA = String(a.carta.n ?? a.carta.nombre ?? a.carta.name ?? '').toLowerCase();
+                const nombreB = String(b.carta.n ?? b.carta.nombre ?? b.carta.name ?? '').toLowerCase();
                 return nombreA.localeCompare(nombreB);
             });
         });
@@ -150,11 +154,11 @@ export default function DeckBuilder() {
     const quitarCarta = (cartaId, esSide) => {
         const setMazo = esSide ? setSideDeck : setMazoPrincipal;
         setMazo(prev => {
-            const existe = prev.find(item => item.carta.u === cartaId);
+            const existe = prev.find(item => getIdUnico(item.carta) === cartaId);
             if (existe && existe.cantidad > 1) {
-                return prev.map(item => item.carta.u === cartaId ? { ...item, cantidad: item.cantidad - 1 } : item);
+                return prev.map(item => getIdUnico(item.carta) === cartaId ? { ...item, cantidad: item.cantidad - 1 } : item);
             }
-            return prev.filter(item => item.carta.u !== cartaId);
+            return prev.filter(item => getIdUnico(item.carta) !== cartaId);
         });
     };
 
@@ -179,11 +183,16 @@ export default function DeckBuilder() {
         const optimizarLista = (lista) => lista.map(item => ({
             cantidad: item.cantidad,
             carta: {
-                u: item.carta.u, 
-                n: item.carta.n ?? item.carta.nombre, 
-                i: item.carta.i ?? item.carta.imagen,
-                t: item.carta.t ?? item.carta.tipo, 
-                c: item.carta.c ?? item.carta.coste
+                u: getIdUnico(item.carta), 
+                n: item.carta.n ?? item.carta.nombre ?? item.carta.name, 
+                i: item.carta.i ?? item.carta.imagen ?? item.carta.img ?? item.carta.image,
+                t: item.carta.t ?? item.carta.tipo ?? item.carta.type, 
+                c: item.carta.c ?? item.carta.coste ?? item.carta.cost,
+                e: item.carta.e ?? item.carta.edicion ?? item.carta.edition,
+                f: item.carta.f ?? item.carta.frecuencia ?? item.carta.frequency,
+                r: item.carta.r ?? item.carta.raza ?? item.carta.race,
+                z: item.carta.z ?? item.carta.fuerza ?? item.carta.power,
+                h: item.carta.h ?? item.carta.habilidad ?? item.carta.ability ?? item.carta.text
             }
         }));
 
@@ -220,10 +229,23 @@ export default function DeckBuilder() {
     const confirmarReemplazo = () => ejecutarGuardado(true);
 
     const obtenerOpciones = (key) => {
-        const mapaClavesAlternas = { e: 'edicion', t: 'tipo', f: 'frecuencia', r: 'raza', c: 'coste', z: 'fuerza' };
-        const keyAlternativa = mapaClavesAlternas[key] || key;
+        const mapaClavesAlternas = { 
+            e: ['edicion', 'edition'], 
+            t: ['tipo', 'type'], 
+            f: ['frecuencia', 'frequency'], 
+            r: ['raza', 'race'], 
+            c: ['coste', 'cost'], 
+            z: ['fuerza', 'power'] 
+        };
+        const clavesAlternas = mapaClavesAlternas[key] || [key];
 
-        const valoresRaw = cartas.map(c => c[key] !== undefined ? c[key] : c[keyAlternativa]);
+        const valoresRaw = cartas.map(c => {
+            for (let k of [key, ...clavesAlternas]) {
+                if (c[k] !== undefined && c[k] !== null) return c[k];
+            }
+            return undefined;
+        });
+
         let valoresPlanos = [];
         valoresRaw.forEach(v => {
             if (v !== undefined && v !== null && v !== '') {
@@ -236,54 +258,55 @@ export default function DeckBuilder() {
 
     const cartasFiltradas = cartas.filter(carta => {
         const nombreStr = normalizeString(carta.n ?? carta.nombre ?? carta.name);
-        const habilidadStr = normalizeString(carta.h ?? carta.habilidad);
+        const habilidadStr = normalizeString(carta.h ?? carta.habilidad ?? carta.ability ?? carta.text);
         const queryBusqueda = normalizeString(busqueda);
         
         const coincideBusqueda = queryBusqueda === '' || nombreStr.includes(queryBusqueda) || habilidadStr.includes(queryBusqueda);
         
-        const valorEdicion = String(carta.e ?? carta.edicion ?? '');
+        const valorEdicion = String(carta.e ?? carta.edicion ?? carta.edition ?? '');
         const nombreEdicionMapeada = EDICIONES_MAP[filtroEdicion] ? String(EDICIONES_MAP[filtroEdicion]).toLowerCase() : '';
         const coincideEdicion = filtroEdicion === 'Todas' || 
             valorEdicion === String(filtroEdicion) || 
-            valorEdicion.toLowerCase() === nombreEdicionMapeada;
+            (nombreEdicionMapeada && valorEdicion.toLowerCase() === nombreEdicionMapeada);
         
-        const valorTipo = String(carta.t ?? carta.tipo ?? '');
+        const valorTipo = String(carta.t ?? carta.tipo ?? carta.type ?? '');
         const nombreTipoMapeado = TIPOS_MAP[filtroTipo] ? String(TIPOS_MAP[filtroTipo]).toLowerCase() : '';
         const coincideTipo = filtroTipo === 'Todas' || 
             valorTipo === String(filtroTipo) || 
-            valorTipo.toLowerCase() === nombreTipoMapeado;
+            (nombreTipoMapeado && valorTipo.toLowerCase() === nombreTipoMapeado);
         
-        const valorFrecuencia = String(carta.f ?? carta.frecuencia ?? '');
+        const valorFrecuencia = String(carta.f ?? carta.frecuencia ?? carta.frequency ?? '');
         const nombreFrecMapeada = FRECUENCIAS_MAP[filtroFrecuencia] ? String(FRECUENCIAS_MAP[filtroFrecuencia]).toLowerCase() : '';
         const coincideFrecuencia = filtroFrecuencia === 'Todas' || 
             valorFrecuencia === String(filtroFrecuencia) || 
-            valorFrecuencia.toLowerCase() === nombreFrecMapeada;
+            (nombreFrecMapeada && valorFrecuencia.toLowerCase() === nombreFrecMapeada);
         
-        const valorRazaRaw = carta.r !== undefined ? carta.r : carta.raza;
+        const valorRazaRaw = carta.r ?? carta.raza ?? carta.race;
         const nombreRazaMapeada = RAZAS_MAP[filtroRaza] ? String(RAZAS_MAP[filtroRaza]).toLowerCase() : '';
         
         let coincideRaza = filtroRaza === 'Todas';
         if (!coincideRaza) {
             if (Array.isArray(valorRazaRaw)) {
-                coincideRaza = valorRazaRaw.some(v => String(v) === String(filtroRaza) || String(v).toLowerCase() === nombreRazaMapeada);
+                coincideRaza = valorRazaRaw.some(v => String(v) === String(filtroRaza) || (nombreRazaMapeada && String(v).toLowerCase() === nombreRazaMapeada));
             } else {
                 const v = String(valorRazaRaw ?? '');
-                coincideRaza = v === String(filtroRaza) || v.toLowerCase() === nombreRazaMapeada;
+                coincideRaza = v === String(filtroRaza) || (nombreRazaMapeada && v.toLowerCase() === nombreRazaMapeada);
             }
         }
                              
-        const valorCoste = String(carta.c ?? carta.coste ?? '');
+        const valorCoste = String(carta.c ?? carta.coste ?? carta.cost ?? '');
         const coincideCoste = filtroCoste === 'Todas' || valorCoste === String(filtroCoste);
         
-        const valorFuerza = String(carta.z ?? carta.fuerza ?? '');
+        const valorFuerza = String(carta.z ?? carta.fuerza ?? carta.power ?? '');
         const coincideFuerza = filtroFuerza === 'Todas' || valorFuerza === String(filtroFuerza);
         
         return coincideBusqueda && coincideEdicion && coincideTipo && coincideFrecuencia && coincideRaza && coincideCoste && coincideFuerza;
     });
 
     const RenderItemMazo = ({ item, esSide }) => {
-        const costeCarta = item.carta.c ?? item.carta.coste;
-        const nombreCarta = item.carta.n ?? item.carta.nombre;
+        const costeCarta = item.carta.c ?? item.carta.coste ?? item.carta.cost;
+        const nombreCarta = item.carta.n ?? item.carta.nombre ?? item.carta.name;
+        const cartaId = getIdUnico(item.carta);
         return (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#222', padding: '6px 10px', borderRadius: '6px', marginBottom: '4px', border: '1px solid #333' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
@@ -292,7 +315,7 @@ export default function DeckBuilder() {
                     <span style={{ color: '#e0e0e0', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={nombreCarta}>{nombreCarta}</span>
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
-                    <button onClick={() => quitarCarta(item.carta.u, esSide)} style={{ background: '#3a1e1e', color: '#ff6b6b', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
+                    <button onClick={() => quitarCarta(cartaId, esSide)} style={{ background: '#3a1e1e', color: '#ff6b6b', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 'bold' }}>-</button>
                     <button onClick={() => agregarCarta(item.carta)} style={{ background: '#1e3a23', color: '#6bff84', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
                 </div>
             </div>
@@ -325,7 +348,7 @@ export default function DeckBuilder() {
                                 <span style={{ width: '6px', height: '6px', backgroundColor: '#c5a059', borderRadius: '50%', display: 'inline-block' }}></span>
                                 <span>{tipo.label} ({totalCartasTipo})</span>
                             </div>
-                            {cartasDelTipo.map(item => <RenderItemMazo key={item.carta.u} item={item} esSide={esSide} />)}
+                            {cartasDelTipo.map(item => <RenderItemMazo key={getIdUnico(item.carta)} item={item} esSide={esSide} />)}
                         </div>
                     );
                 })}
@@ -336,7 +359,7 @@ export default function DeckBuilder() {
                             <span style={{ width: '6px', height: '6px', backgroundColor: '#888', borderRadius: '50%', display: 'inline-block' }}></span>
                             <span>OTROS ({cartasOtros.reduce((acc, item) => acc + item.cantidad, 0)})</span>
                         </div>
-                        {cartasOtros.map(item => <RenderItemMazo key={item.carta.u} item={item} esSide={esSide} />)}
+                        {cartasOtros.map(item => <RenderItemMazo key={getIdUnico(item.carta)} item={item} esSide={esSide} />)}
                     </div>
                 )}
             </>
@@ -414,11 +437,13 @@ export default function DeckBuilder() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', paddingBottom: '20px' }}>
                     {cartasFiltradas.map((carta) => {
-                        const nombreCarta = carta.n ?? carta.nombre;
+                        const nombreCarta = carta.n ?? carta.nombre ?? carta.name;
+                        const imagenCarta = carta.i ?? carta.imagen ?? carta.img ?? carta.image;
+                        const cartaId = getIdUnico(carta);
                         return (
-                            <div key={carta.u} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#1a1a1a', border: '1px solid #333', transition: 'transform 0.1s', cursor: 'pointer' }}>
+                            <div key={cartaId || Math.random()} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#1a1a1a', border: '1px solid #333', transition: 'transform 0.1s', cursor: 'pointer' }}>
                                 <img 
-                                    src={carta.i ?? carta.imagen} alt={nombreCarta} loading="lazy" 
+                                    src={imagenCarta} alt={nombreCarta} loading="lazy" 
                                     onClick={() => setCartaSeleccionada(carta)}
                                     style={{ width: '100%', display: 'block', aspectRatio: '3/4', objectFit: 'cover' }} 
                                 />
@@ -527,11 +552,11 @@ export default function DeckBuilder() {
 
             {/* Modal de Detalle de Carta */}
             {cartaSeleccionada && (() => {
-                const nombreModal = cartaSeleccionada.n ?? cartaSeleccionada.nombre;
-                const tipoModal = cartaSeleccionada.t ?? cartaSeleccionada.tipo;
-                const costeModal = cartaSeleccionada.c ?? cartaSeleccionada.coste;
-                const habilidadModal = cartaSeleccionada.h ?? cartaSeleccionada.habilidad;
-                const imagenModal = cartaSeleccionada.i ?? cartaSeleccionada.imagen;
+                const nombreModal = cartaSeleccionada.n ?? cartaSeleccionada.nombre ?? cartaSeleccionada.name;
+                const tipoModal = cartaSeleccionada.t ?? cartaSeleccionada.tipo ?? cartaSeleccionada.type;
+                const costeModal = cartaSeleccionada.c ?? cartaSeleccionada.coste ?? cartaSeleccionada.cost;
+                const habilidadModal = cartaSeleccionada.h ?? cartaSeleccionada.habilidad ?? cartaSeleccionada.ability ?? cartaSeleccionada.text;
+                const imagenModal = cartaSeleccionada.i ?? cartaSeleccionada.imagen ?? cartaSeleccionada.img ?? cartaSeleccionada.image;
 
                 return (
                     <div 
