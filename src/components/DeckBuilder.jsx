@@ -17,7 +17,7 @@ const FRECUENCIAS_MAP = {
 };
 const TIPOS_MAP = { 1: 'Aliado', 2: 'Talismán', 3: 'Arma', 4: 'Tótem', 5: 'Oro' };
 const EDICIONES_MAP = {
-    172: "AyD Vigilantes", 171: "AyD Vigilantes: profecias", 170: "Kit AyD Vigilantes: Serafin",
+    173: "Drácula", 172: "AyD Vigilantes", 171: "AyD Vigilantes: profecias", 170: "Kit AyD Vigilantes: Serafin",
     169: "Kit AyD Vigilantes: Belial", 168: "Imperio de Guerreros", 167: "Imperio Eterno",
     166: "Imperio del Dragón", 165: "JO Pecados Capitales", 164: "Chile Oculto",
     163: "Toolkit 2025", 162: "KVM Titanes", 161: "Libertadores", 160: "Onyria",
@@ -36,7 +36,7 @@ const ESTRUCTURA_TIPOS = [
 // Función para remover tildes y pasar a minúsculas
 const normalizeString = (str) => {
     if (str === null || str === undefined) return '';
-    return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 };
 
 // Función para obtener el ID único seguro de una carta
@@ -94,8 +94,15 @@ export default function DeckBuilder() {
         });
 
         async function cargarDatos() {
-            const resultado = await fetchCards();
-            setCartas(resultado || []);
+            try {
+                const resultado = await fetchCards();
+                // Prevención por si el JSON incluye el arreglo dentro de una llave "cards"
+                const arrayCartas = Array.isArray(resultado) ? resultado : (resultado?.cards || []);
+                setCartas(arrayCartas);
+            } catch (error) {
+                console.error("Error al cargar cartas:", error);
+                setCartas([]);
+            }
         }
         cargarDatos();
 
@@ -140,8 +147,8 @@ export default function DeckBuilder() {
                 
                 if (tipoA !== tipoB) return tipoA - tipoB;
                 
-                const costeA = (a.carta.c ?? a.carta.coste ?? a.carta.cost) !== undefined ? Number(a.carta.c ?? a.carta.coste ?? a.carta.cost) : 99;
-                const costeB = (b.carta.c ?? b.carta.coste ?? b.carta.cost) !== undefined ? Number(b.carta.c ?? b.carta.coste ?? b.carta.cost) : 99;
+                const costeA = (a.carta.c ?? a.carta.coste ?? a.carta.cost) !== undefined && (a.carta.c ?? a.carta.coste ?? a.carta.cost) !== null ? Number(a.carta.c ?? a.carta.coste ?? a.carta.cost) : 99;
+                const costeB = (b.carta.c ?? b.carta.coste ?? b.carta.cost) !== undefined && (b.carta.c ?? b.carta.coste ?? b.carta.cost) !== null ? Number(b.carta.c ?? b.carta.coste ?? b.carta.cost) : 99;
                 if (costeA !== costeB) return costeA - costeB;
                 
                 const nombreA = String(a.carta.n ?? a.carta.nombre ?? a.carta.name ?? '').toLowerCase();
@@ -256,52 +263,121 @@ export default function DeckBuilder() {
         return ['Todas', ...unicos];
     };
 
-    const cartasFiltradas = cartas.filter(carta => {
+    // Filtrado robusto de cartas
+    let cartasFiltradas = cartas.filter(carta => {
+        const queryBusqueda = normalizeString(busqueda);
         const nombreStr = normalizeString(carta.n ?? carta.nombre ?? carta.name);
         const habilidadStr = normalizeString(carta.h ?? carta.habilidad ?? carta.ability ?? carta.text);
-        const queryBusqueda = normalizeString(busqueda);
         
-        const coincideBusqueda = queryBusqueda === '' || nombreStr.includes(queryBusqueda) || habilidadStr.includes(queryBusqueda);
+        // Separa la búsqueda por espacios para que deban coincidir todas las palabras tipeadas
+        const terms = queryBusqueda.split(/\s+/).filter(Boolean);
+        const coincideBusqueda = terms.length === 0 || terms.every(term => 
+            nombreStr.includes(term) || habilidadStr.includes(term)
+        );
         
-        const valorEdicion = String(carta.e ?? carta.edicion ?? carta.edition ?? '');
-        const nombreEdicionMapeada = EDICIONES_MAP[filtroEdicion] ? String(EDICIONES_MAP[filtroEdicion]).toLowerCase() : '';
-        const coincideEdicion = filtroEdicion === 'Todas' || 
-            valorEdicion === String(filtroEdicion) || 
-            (nombreEdicionMapeada && valorEdicion.toLowerCase() === nombreEdicionMapeada);
+        // Edición
+        const valorEdicionRaw = carta.e ?? carta.edicion ?? carta.edition;
+        const nombreEdicionMapeada = EDICIONES_MAP[filtroEdicion] ? normalizeString(EDICIONES_MAP[filtroEdicion]) : '';
+        const coincideEdicion = filtroEdicion === 'Todas' || (() => {
+            const valores = Array.isArray(valorEdicionRaw) ? valorEdicionRaw : [valorEdicionRaw];
+            return valores.some(v => {
+                if (v === undefined || v === null) return false;
+                const strV = String(v);
+                return strV === String(filtroEdicion) || 
+                       normalizeString(strV) === normalizeString(filtroEdicion) ||
+                       (nombreEdicionMapeada && normalizeString(strV) === nombreEdicionMapeada);
+            });
+        })();
         
-        const valorTipo = String(carta.t ?? carta.tipo ?? carta.type ?? '');
-        const nombreTipoMapeado = TIPOS_MAP[filtroTipo] ? String(TIPOS_MAP[filtroTipo]).toLowerCase() : '';
-        const coincideTipo = filtroTipo === 'Todas' || 
-            valorTipo === String(filtroTipo) || 
-            (nombreTipoMapeado && valorTipo.toLowerCase() === nombreTipoMapeado);
+        // Tipo
+        const valorTipoRaw = carta.t ?? carta.tipo ?? carta.type;
+        const nombreTipoMapeado = TIPOS_MAP[filtroTipo] ? normalizeString(TIPOS_MAP[filtroTipo]) : '';
+        const coincideTipo = filtroTipo === 'Todas' || (() => {
+            const valores = Array.isArray(valorTipoRaw) ? valorTipoRaw : [valorTipoRaw];
+            return valores.some(v => {
+                if (v === undefined || v === null) return false;
+                const strV = String(v);
+                return strV === String(filtroTipo) ||
+                       normalizeString(strV) === normalizeString(filtroTipo) ||
+                       (nombreTipoMapeado && normalizeString(strV) === nombreTipoMapeado);
+            });
+        })();
         
-        const valorFrecuencia = String(carta.f ?? carta.frecuencia ?? carta.frequency ?? '');
-        const nombreFrecMapeada = FRECUENCIAS_MAP[filtroFrecuencia] ? String(FRECUENCIAS_MAP[filtroFrecuencia]).toLowerCase() : '';
-        const coincideFrecuencia = filtroFrecuencia === 'Todas' || 
-            valorFrecuencia === String(filtroFrecuencia) || 
-            (nombreFrecMapeada && valorFrecuencia.toLowerCase() === nombreFrecMapeada);
+        // Frecuencia
+        const valorFrecuenciaRaw = carta.f ?? carta.frecuencia ?? carta.frequency;
+        const nombreFrecMapeada = FRECUENCIAS_MAP[filtroFrecuencia] ? normalizeString(FRECUENCIAS_MAP[filtroFrecuencia]) : '';
+        const codigoFrecEncontrado = Object.entries(FRECUENCIAS_MAP).find(([code, name]) => normalizeString(name) === normalizeString(filtroFrecuencia))?.[0] || '';
+        const coincideFrecuencia = filtroFrecuencia === 'Todas' || (() => {
+            const valores = Array.isArray(valorFrecuenciaRaw) ? valorFrecuenciaRaw : [valorFrecuenciaRaw];
+            return valores.some(v => {
+                if (v === undefined || v === null) return false;
+                const strV = String(v);
+                return strV === String(filtroFrecuencia) ||
+                       normalizeString(strV) === normalizeString(filtroFrecuencia) ||
+                       (nombreFrecMapeada && normalizeString(strV) === nombreFrecMapeada) ||
+                       (codigoFrecEncontrado && strV.toUpperCase() === codigoFrecEncontrado.toUpperCase());
+            });
+        })();
         
+        // Raza
         const valorRazaRaw = carta.r ?? carta.raza ?? carta.race;
-        const nombreRazaMapeada = RAZAS_MAP[filtroRaza] ? String(RAZAS_MAP[filtroRaza]).toLowerCase() : '';
-        
-        let coincideRaza = filtroRaza === 'Todas';
-        if (!coincideRaza) {
-            if (Array.isArray(valorRazaRaw)) {
-                coincideRaza = valorRazaRaw.some(v => String(v) === String(filtroRaza) || (nombreRazaMapeada && String(v).toLowerCase() === nombreRazaMapeada));
-            } else {
-                const v = String(valorRazaRaw ?? '');
-                coincideRaza = v === String(filtroRaza) || (nombreRazaMapeada && v.toLowerCase() === nombreRazaMapeada);
-            }
-        }
+        const nombreRazaMapeada = RAZAS_MAP[filtroRaza] ? normalizeString(RAZAS_MAP[filtroRaza]) : '';
+        const codigoRazaEncontrado = Object.entries(RAZAS_MAP).find(([num, name]) => normalizeString(name) === normalizeString(filtroRaza))?.[0] || '';
+        const coincideRaza = filtroRaza === 'Todas' || (() => {
+            const valores = Array.isArray(valorRazaRaw) ? valorRazaRaw : [valorRazaRaw];
+            return valores.some(v => {
+                if (v === undefined || v === null) return false;
+                const strV = String(v);
+                return strV === String(filtroRaza) ||
+                       normalizeString(strV) === normalizeString(filtroRaza) ||
+                       (nombreRazaMapeada && normalizeString(strV) === nombreRazaMapeada) ||
+                       (codigoRazaEncontrado && strV === codigoRazaEncontrado);
+            });
+        })();
                              
-        const valorCoste = String(carta.c ?? carta.coste ?? carta.cost ?? '');
-        const coincideCoste = filtroCoste === 'Todas' || valorCoste === String(filtroCoste);
+        // Coste
+        const valorCosteRaw = carta.c ?? carta.coste ?? carta.cost;
+        const coincideCoste = filtroCoste === 'Todas' || (() => {
+            const valores = Array.isArray(valorCosteRaw) ? valorCosteRaw : [valorCosteRaw];
+            return valores.some(v => {
+                if (v === undefined || v === null || v === '') return false;
+                return String(v) === String(filtroCoste) || Number(v) === Number(filtroCoste);
+            });
+        })();
         
-        const valorFuerza = String(carta.z ?? carta.fuerza ?? carta.power ?? '');
-        const coincideFuerza = filtroFuerza === 'Todas' || valorFuerza === String(filtroFuerza);
+        // Fuerza
+        const valorFuerzaRaw = carta.z ?? carta.fuerza ?? carta.power;
+        const coincideFuerza = filtroFuerza === 'Todas' || (() => {
+            const valores = Array.isArray(valorFuerzaRaw) ? valorFuerzaRaw : [valorFuerzaRaw];
+            return valores.some(v => {
+                if (v === undefined || v === null || v === '') return false;
+                return String(v) === String(filtroFuerza) || Number(v) === Number(filtroFuerza);
+            });
+        })();
         
         return coincideBusqueda && coincideEdicion && coincideTipo && coincideFrecuencia && coincideRaza && coincideCoste && coincideFuerza;
     });
+
+    // Ordenar resultados de búsqueda para que las coincidencias por Nombre aparezcan primero
+    if (busqueda.trim() !== '') {
+        const query = normalizeString(busqueda);
+        cartasFiltradas.sort((a, b) => {
+            const nombreA = normalizeString(a.n ?? a.nombre ?? a.name);
+            const nombreB = normalizeString(b.n ?? b.nombre ?? b.name);
+            
+            const aNameStarts = nombreA.startsWith(query);
+            const bNameStarts = nombreB.startsWith(query);
+            if (aNameStarts && !bNameStarts) return -1;
+            if (!aNameStarts && bNameStarts) return 1;
+
+            const aNameIncludes = nombreA.includes(query);
+            const bNameIncludes = nombreB.includes(query);
+            if (aNameIncludes && !bNameIncludes) return -1;
+            if (!aNameIncludes && bNameIncludes) return 1;
+            
+            return 0; 
+        });
+    }
 
     const RenderItemMazo = ({ item, esSide }) => {
         const costeCarta = item.carta.c ?? item.carta.coste ?? item.carta.cost;
