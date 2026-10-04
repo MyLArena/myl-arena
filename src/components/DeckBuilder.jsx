@@ -33,6 +33,25 @@ const ESTRUCTURA_TIPOS = [
     { id: 5, label: 'OROS' }
 ];
 
+// Función para remover tildes y pasar a minúsculas
+const normalizeString = (str) => {
+    if (str === null || str === undefined) return '';
+    return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+};
+
+// Función para obtener siempre el ID correcto numérico del tipo
+const getTipoId = (carta) => {
+    let val = carta.t ?? carta.tipo;
+    if (val === undefined || val === null) return 99;
+    
+    const numVal = Number(val);
+    if (!isNaN(numVal) && TIPOS_MAP[numVal]) return numVal;
+    
+    const strVal = String(val).toLowerCase();
+    const found = Object.entries(TIPOS_MAP).find(([k, v]) => String(v).toLowerCase() === strVal);
+    return found ? Number(found[0]) : 99;
+};
+
 export default function DeckBuilder() {
     const [cartas, setCartas] = useState([]);
     const [busqueda, setBusqueda] = useState('');
@@ -111,8 +130,9 @@ export default function DeckBuilder() {
 
             return nuevoMazo.sort((a, b) => {
                 const ordenTipos = { 1: 1, 4: 2, 3: 3, 2: 4, 5: 5 };
-                const tipoA = ordenTipos[Number(a.carta.t ?? a.carta.tipo)] || 99;
-                const tipoB = ordenTipos[Number(b.carta.t ?? b.carta.tipo)] || 99;
+                
+                const tipoA = ordenTipos[getTipoId(a.carta)] || 99;
+                const tipoB = ordenTipos[getTipoId(b.carta)] || 99;
                 
                 if (tipoA !== tipoB) return tipoA - tipoB;
                 
@@ -215,26 +235,42 @@ export default function DeckBuilder() {
     };
 
     const cartasFiltradas = cartas.filter(carta => {
-        const nombreStr = String(carta.n ?? carta.nombre ?? carta.name ?? '').toLowerCase();
-        const habilidadStr = String(carta.h ?? carta.habilidad ?? '').toLowerCase();
-        const queryBusqueda = busqueda.toLowerCase();
+        const nombreStr = normalizeString(carta.n ?? carta.nombre ?? carta.name);
+        const habilidadStr = normalizeString(carta.h ?? carta.habilidad);
+        const queryBusqueda = normalizeString(busqueda);
         
-        const coincideBusqueda = nombreStr.includes(queryBusqueda) || habilidadStr.includes(queryBusqueda);
+        const coincideBusqueda = queryBusqueda === '' || nombreStr.includes(queryBusqueda) || habilidadStr.includes(queryBusqueda);
         
         const valorEdicion = String(carta.e ?? carta.edicion ?? '');
-        const nombreEdicionMapeada = EDICIONES_MAP[filtroEdicion] ? EDICIONES_MAP[filtroEdicion].toLowerCase() : '';
-        const coincideEdicion = filtroEdicion === 'Todas' || valorEdicion === String(filtroEdicion) || valorEdicion.toLowerCase() === nombreEdicionMapeada;
+        const nombreEdicionMapeada = EDICIONES_MAP[filtroEdicion] ? String(EDICIONES_MAP[filtroEdicion]).toLowerCase() : '';
+        const coincideEdicion = filtroEdicion === 'Todas' || 
+            valorEdicion === String(filtroEdicion) || 
+            valorEdicion.toLowerCase() === nombreEdicionMapeada;
         
         const valorTipo = String(carta.t ?? carta.tipo ?? '');
-        const coincideTipo = filtroTipo === 'Todas' || valorTipo === String(filtroTipo);
+        const nombreTipoMapeado = TIPOS_MAP[filtroTipo] ? String(TIPOS_MAP[filtroTipo]).toLowerCase() : '';
+        const coincideTipo = filtroTipo === 'Todas' || 
+            valorTipo === String(filtroTipo) || 
+            valorTipo.toLowerCase() === nombreTipoMapeado;
         
         const valorFrecuencia = String(carta.f ?? carta.frecuencia ?? '');
-        const coincideFrecuencia = filtroFrecuencia === 'Todas' || valorFrecuencia === String(filtroFrecuencia);
+        const nombreFrecMapeada = FRECUENCIAS_MAP[filtroFrecuencia] ? String(FRECUENCIAS_MAP[filtroFrecuencia]).toLowerCase() : '';
+        const coincideFrecuencia = filtroFrecuencia === 'Todas' || 
+            valorFrecuencia === String(filtroFrecuencia) || 
+            valorFrecuencia.toLowerCase() === nombreFrecMapeada;
         
-        const valorRaza = carta.r !== undefined ? carta.r : carta.raza;
-        const coincideRaza = filtroRaza === 'Todas' || 
-                             String(valorRaza) === String(filtroRaza) || 
-                             (Array.isArray(valorRaza) && valorRaza.map(String).includes(String(filtroRaza)));
+        const valorRazaRaw = carta.r !== undefined ? carta.r : carta.raza;
+        const nombreRazaMapeada = RAZAS_MAP[filtroRaza] ? String(RAZAS_MAP[filtroRaza]).toLowerCase() : '';
+        
+        let coincideRaza = filtroRaza === 'Todas';
+        if (!coincideRaza) {
+            if (Array.isArray(valorRazaRaw)) {
+                coincideRaza = valorRazaRaw.some(v => String(v) === String(filtroRaza) || String(v).toLowerCase() === nombreRazaMapeada);
+            } else {
+                const v = String(valorRazaRaw ?? '');
+                coincideRaza = v === String(filtroRaza) || v.toLowerCase() === nombreRazaMapeada;
+            }
+        }
                              
         const valorCoste = String(carta.c ?? carta.coste ?? '');
         const coincideCoste = filtroCoste === 'Todas' || valorCoste === String(filtroCoste);
@@ -273,12 +309,12 @@ export default function DeckBuilder() {
         }
 
         const tiposMapeadosIds = ESTRUCTURA_TIPOS.map(t => t.id);
-        const cartasOtros = mazo.filter(item => !tiposMapeadosIds.includes(Number(item.carta.t ?? item.carta.tipo)));
+        const cartasOtros = mazo.filter(item => !tiposMapeadosIds.includes(getTipoId(item.carta)));
 
         return (
             <>
                 {ESTRUCTURA_TIPOS.map(tipo => {
-                    const cartasDelTipo = mazo.filter(item => Number(item.carta.t ?? item.carta.tipo) === tipo.id);
+                    const cartasDelTipo = mazo.filter(item => getTipoId(item.carta) === tipo.id);
                     if (cartasDelTipo.length === 0) return null;
 
                     const totalCartasTipo = cartasDelTipo.reduce((acc, item) => acc + item.cantidad, 0);
